@@ -1,3 +1,7 @@
+## [0.6.5] - 2026-07-20
+
+- **修复**: 修复打包后路径问题：资源文件路径用 sys._MEIPASS，spec 打包 resources/ 和 CHANGELOG.md
+
 ## [0.6.4] - 2026-07-20
 
 - **修复**: 打包后版本号读取错误：优先从 _MEIPASS/Resources 读 VERSION，不再受项目目录影响

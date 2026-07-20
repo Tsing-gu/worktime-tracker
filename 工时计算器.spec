@@ -5,7 +5,11 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('VERSION', '.')],
+    datas=[
+        ('VERSION', '.'),
+        ('CHANGELOG.md', '.'),
+        ('resources', 'resources'),
+    ],
     hiddenimports=['openpyxl'],
     hookspath=[],
     hooksconfig={},
