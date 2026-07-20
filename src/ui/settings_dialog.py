@@ -28,6 +28,7 @@ from src.config import (
     SETTING_NOTIFY_ON_OFF,
     SETTING_AUTO_START,
     SETTING_HOLIDAY_AUTO_EXCLUDE,
+    SETTING_AUTO_UPDATE,
 )
 
 
@@ -107,6 +108,16 @@ class SettingsDialog(QtWidgets.QDialog):
         self.holiday_auto.setChecked(database.get_setting(SETTING_HOLIDAY_AUTO_EXCLUDE, "1") == "1")
         layout.addRow(self.holiday_auto)
 
+        # ── 自动更新 ──
+        self.auto_update = QtWidgets.QCheckBox("自动下载并安装更新")
+        self.auto_update.setChecked(database.get_setting(SETTING_AUTO_UPDATE, "0") == "1")
+        layout.addRow(self.auto_update)
+
+        # ── 检查更新按钮 ──
+        self.check_update_btn = QtWidgets.QPushButton("立即检查更新")
+        self.check_update_btn.clicked.connect(self._on_check_update)
+        layout.addRow(self.check_update_btn)
+
         # ── 确认/取消按钮 ──
         btn_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
@@ -132,4 +143,14 @@ class SettingsDialog(QtWidgets.QDialog):
             SETTING_NOTIFY_ON_OFF: "1" if self.notify_off.isChecked() else "0",
             SETTING_AUTO_START: "1" if self.auto_start.isChecked() else "0",
             SETTING_HOLIDAY_AUTO_EXCLUDE: "1" if self.holiday_auto.isChecked() else "0",
+            SETTING_AUTO_UPDATE: "1" if self.auto_update.isChecked() else "0",
         }
+
+    def _on_check_update(self):
+        """立即检查更新，调用父窗口（MainWindow）的更新逻辑。"""
+        parent = self.parent()
+        if parent and hasattr(parent, "on_check_update"):
+            self.close()
+            parent.on_check_update()
+        else:
+            QtWidgets.QMessageBox.information(self, "检查更新", "请在主界面托盘菜单中检查更新")
