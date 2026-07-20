@@ -562,7 +562,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.update_service.reset_cancel()
 
         def on_progress(downloaded, total):
-            progress.update_progress(downloaded, total)
+            # 通过 QMetaObject 在主线程更新 UI，避免跨线程操作 Qt 控件崩溃
+            QtCore.QMetaObject.invokeMethod(progress, "update_progress",
+                                            QtCore.Qt.QueuedConnection,
+                                            QtCore.Q_ARG(int, downloaded),
+                                            QtCore.Q_ARG(int, total))
 
         def worker():
             dmg_path = self.update_service.download_update(info.dmg_url, on_progress)
