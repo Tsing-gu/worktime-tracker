@@ -267,16 +267,15 @@ class WorktimeService:
     def get_period_stats(self) -> PeriodStats:
         """获取本期工时统计。"""
         today = compute_work_date(datetime.now())
+        calc = self._get_calculator()
         from src.core.date_utils import get_period_range
         holidays = self.holiday_repo.get_all()
-
-        period = get_period_range(today, holidays)
+        period = get_period_range(today, holidays, calc.weekly_work_days)
         if period is None:
             return PeriodStats(is_rest=True)
         period_start, period_end = period
-
         records = self.worktime_repo.get_range(period_start, period_end)
-        return self._get_calculator().period_stats(today, records, now=datetime.now())
+        return calc.period_stats(today, records, now=datetime.now())
 
     # ─── 月统计 ────────────────────────────────────────────
 

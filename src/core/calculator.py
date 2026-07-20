@@ -51,7 +51,7 @@ class WorktimeCalculator:
         if now is None:
             now = datetime.now()
 
-        period = get_period_range(today, self.holidays)
+        period = get_period_range(today, self.holidays, self.weekly_work_days)
         if period is None:
             return PeriodStats(is_rest=True)
 
@@ -85,7 +85,7 @@ class WorktimeCalculator:
         while d <= week_end_date:
             if d > today:
                 break
-            if is_workday(d, self.holidays, self.holiday_auto_exclude):
+            if is_workday(d, self.holidays, self.weekly_work_days):
                 rec = next((r for r in records if r["work_date"] == d.isoformat()), None)
                 if rec:
                     if rec.get("leave_type") and rec["leave_type"] != "none":
@@ -205,7 +205,7 @@ class WorktimeCalculator:
 
     def previous_workday(self, today: date) -> Optional[date]:
         """获取前一个工作日。"""
-        return get_previous_workday(today, self.holidays, self.holiday_auto_exclude)
+        return get_previous_workday(today, self.holidays, self.weekly_work_days)
 
     def _iterate_range(
         self,
@@ -230,7 +230,7 @@ class WorktimeCalculator:
 
         d = start
         while d <= end:
-            if is_workday(d, self.holidays, self.holiday_auto_exclude):
+            if is_workday(d, self.holidays, self.weekly_work_days):
                 rec = next((r for r in records if r["work_date"] == d.isoformat()), None)
                 is_leave = rec and rec.get("leave_type") and rec["leave_type"] != "none"
                 if is_leave:
@@ -257,7 +257,7 @@ class WorktimeCalculator:
         remaining_days = 0
         d = today
         while d <= end:
-            if is_workday(d, self.holidays, self.holiday_auto_exclude):
+            if is_workday(d, self.holidays, self.weekly_work_days):
                 rec = next((r for r in records if r["work_date"] == d.isoformat()), None)
                 is_leave = rec and rec.get("leave_type") and rec["leave_type"] != "none"
                 if not is_leave:
