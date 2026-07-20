@@ -18,9 +18,7 @@ from datetime import datetime, date, timedelta
 
 from PySide6 import QtWidgets, QtCore, QtGui
 
-from src.data import database
 from src.config import SETTING_DAILY_REQUIRED_HOURS, LEAVE_TYPES
-from src.services import worktime_service, export_service
 from src.services.worktime_service import WorktimeService
 from src.ui.leave_dialog import LeaveDialog
 from src.ui.theme import get_theme
@@ -244,7 +242,7 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         holidays_map = {h["date"]: h for h in holidays}
 
         theme = get_theme()
-        default_required = float(database.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+        default_required = float(self.service.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
 
         # 计算起始位置（周一起始）
         first_weekday = start.weekday()
@@ -358,7 +356,7 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
             work_date_str: 工作日日期字符串
         """
         wd = date.fromisoformat(work_date_str)
-        existing = database.get_daily_worktime(wd)
+        existing = self.service.get_daily_worktime(wd)
         start_default = ""
         end_default = ""
         if existing:
@@ -418,9 +416,10 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
             start = date(year, month, 1)
             end = date(year, month + 1, 1) - timedelta(days=1)
 
+        exporter = self.service.get_exporter()
         if fmt == "csv":
-            path = export_service.export_csv(start, end)
+            path = exporter.to_csv(start, end)
         else:
-            path = export_service.export_excel(start, end)
+            path = exporter.to_excel(start, end)
 
         QtWidgets.QMessageBox.information(self, "导出成功", f"文件已保存到：\n{path}")

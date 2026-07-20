@@ -82,12 +82,20 @@ class WorkTracker:
 
     def __init__(self):
         """初始化追踪器，所有状态标记归零。"""
-        self.last_idle = None           # 上一次轮询的空闲值
-        self.start_recorded = False     # 是否已记录上班
-        self.off_notified = False       # 是否已通知下班
-        self.target_notified = False    # 是否已通知达标
-        self.manual_off = False         # 是否已手动下班
-        self.back_notified = False      # 是否已发送回来通知（防重复弹窗）
+        self.last_idle = None               # 上一次轮询的空闲值
+        self._start_recorded = False         # 是否已记录上班
+        self._off_notified = False           # 是否已通知下班
+        self._target_notified = False        # 是否已通知达标
+        self._manual_off = False             # 是否已手动下班
+        self._back_notified = False          # 是否已发送回来通知（防重复弹窗）
+
+    def is_started(self) -> bool:
+        """是否已记录上班。"""
+        return self._start_recorded
+
+    def is_off(self) -> bool:
+        """是否已下班（手动或自动）。"""
+        return self._manual_off or self._off_notified
 
     # ─── 上班回溯 ──────────────────────────────────────────
 
@@ -127,22 +135,22 @@ class WorkTracker:
         if existing_start:
             # 手动记录不覆盖
             if existing_source == "manual":
-                self.start_recorded = True
+                self._start_recorded = True
                 return None
 
             # 自动记录 + 未下班 + pmset 有更早的记录 → 修正
             if existing_source == "auto" and not existing_end_time and pmset_start:
                 if (existing_start - pmset_start).total_seconds() > 300:
-                    self.start_recorded = True
+                    self._start_recorded = True
                     return pmset_start  # 返回更准确的上班时间
 
             # 已有自动记录 + 已下班 → 不覆盖
-            self.start_recorded = True
+            self._start_recorded = True
             return None
 
         # 优先级 4: 无上班记录，尝试从 pmset 回溯
         if pmset_start:
-            self.start_recorded = True
+            self._start_recorded = True
             return pmset_start
 
         # 优先级 5: 无 pmset 记录，尝试从当前 HID 活动回推
@@ -153,7 +161,7 @@ class WorkTracker:
             # 如果回推时间早于上班检测起始时间，对齐到起始时间
             if start_time.hour < floor_h or (start_time.hour == floor_h and start_time.minute < floor_m):
                 start_time = start_time.replace(hour=floor_h, minute=floor_m, second=0, microsecond=0)
-            self.start_recorded = True
+            self._start_recorded = True
             return start_time
 
         # 优先级 6: 以上都不满足 → 静默等待
@@ -207,13 +215,13 @@ class WorkTracker:
         self.last_idle = idle
 
         # ── 已下班（手动或自动）→ 检测用户是否回来 ──
-        is_off = self.manual_off or (daily_end_time and daily_source == "manual") or self.off_notified
+        is_off = self._manual_off or (daily_end_time and daily_source == "manual") or self._off_notified
         if is_off:
-            if self.manual_off or (daily_end_time and daily_source == "manual"):
-                self.manual_off = True
+            if self._manual_off or (daily_end_time and daily_source == "manual"):
+                self._manual_off = True
             # 用户回来活跃 → 返回 back 事件（防重复弹窗）
-            if active and not self.back_notified:
-                self.back_notified = True
+            if active and not self._back_notified:
+                self._back_notified = True
                 return PollResult(event="back", idle=idle, active=active, last_active=last_active)
             # 用户未活跃 → 空闲状态
             return PollResult(event="idle", idle=idle, active=active, last_active=last_active)
@@ -243,8 +251,8 @@ class WorkTracker:
                 # 下班判定：已达时间下限，或凌晨时段直接判定
                 off_floor_met = now_total_min >= floor_total_min
                 if off_time and (off_floor_met or is_early_morning):
-                    if not self.off_notified:
-                        self.off_notified = True
+                    if not self._off_notified:
+                        self._off_notified = True
                         return PollResult(
                             event="off",
                             off_time=off_time,
@@ -253,8 +261,8 @@ class WorkTracker:
                         )
 
             # ── 达标判定: 工时达到要求 ──
-            if worked_hours >= daily_required_hours and not self.target_notified:
-                self.target_notified = True
+            if worked_hours >= daily_required_hours and not self._target_notified:
+                self._target_notified = True
                 return PollResult(
                     event="target_reached",
                     worked_hours=worked_hours,
@@ -287,7 +295,7 @@ class WorkTracker:
         if now is None:
             now = datetime.now()
         worked_hours = (now - start_time).total_seconds() / 3600.0
-        self.manual_off = True
+        self._manual_off = True
         return PollResult(event="manual_off", off_time=now, worked_hours=worked_hours)
 
     # ─── 恢复计时（下班后回来） ────────────────────────────
@@ -299,9 +307,9 @@ class WorkTracker:
         重置下班相关标记，使追踪器回到"工作中"状态。
         调用方应在调用此方法前/后清除 DB 中的 end_time。
         """
-        self.off_notified = False
-        self.manual_off = False
-        self.back_notified = False
+        self._off_notified = False
+        self._manual_off = False
+        self._back_notified = False
 
     # ─── 重置（跨天） ──────────────────────────────────────
 
@@ -310,9 +318,9 @@ class WorkTracker:
         重置追踪器状态，用于跨天时调用。
         所有状态标记归零，等待新一天的上下班判定。
         """
-        self.start_recorded = False
-        self.off_notified = False
-        self.target_notified = False
-        self.manual_off = False
-        self.back_notified = False
+        self._start_recorded = False
+        self._off_notified = False
+        self._target_notified = False
+        self._manual_off = False
+        self._back_notified = False
         self.last_idle = None

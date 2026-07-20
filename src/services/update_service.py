@@ -6,24 +6,17 @@ update_service - 纯 Python 自动更新服务
 零原生依赖的自动更新实现：拉取 appcast.xml → 对比版本 → 下载 DMG →
 外部脚本替换 .app → 重启。
 
-设计原则:
-    - 不依赖 Sparkle/objc 等原生框架，规避 PyInstaller 兼容问题
-    - 校验用文件大小 length（HTTPS 已防中间人，未签名场景下 EdDSA 增益有限）
-    - 安装由外部 bash 脚本完成，主进程先退出再替换，避免运行中 .app 被覆盖
-
-版本: 0.5.3
+版本: 0.8.0
 """
 
 import os
 import sys
 import tempfile
 import subprocess
-import shutil
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Callable
 from urllib.request import urlopen, Request
-from urllib.parse import quote, urlsplit, urlunsplit
 from xml.etree import ElementTree
 
 from src.config import (
@@ -32,8 +25,10 @@ from src.config import (
     SETTING_AUTO_UPDATE,
     SETTING_LAST_UPDATE_CHECK,
 )
-from src.data import database
+from src.data.settings_repo import SettingsRepository
 from src.utils.version import get_version
+from src.utils.text import strip_html
+from src.utils.net import encode_url
 
 
 @dataclass
@@ -47,19 +42,16 @@ class UpdateInfo:
 
 
 class UpdateService:
-    """
-    纯 Python 自动更新服务。
+    """纯 Python 自动更新服务。
 
-    使用方式:
-        svc = UpdateService()
-        info = svc.check_for_updates()
-        if info:
-            svc.download_and_install(info, progress_callback)
+    Args:
+        settings_repo: SettingsRepository 实例
     """
 
-    def __init__(self):
+    def __init__(self, settings_repo: SettingsRepository):
         self._temp_dir = tempfile.gettempdir()
         self._cancelled = False
+        self._settings = settings_repo
 
     def cancel_download(self):
         """取消正在进行的下载。"""
@@ -72,12 +64,7 @@ class UpdateService:
     # ─── 版本检查 ──────────────────────────────────────────
 
     def check_for_updates(self) -> Optional[UpdateInfo]:
-        """
-        拉取 appcast.xml，解析最新版本，与本地 VERSION 对比。
-
-        Returns:
-            UpdateInfo（有新版时），或 None（无新版/网络错误）
-        """
+        """拉取 appcast.xml，解析最新版本，与本地 VERSION 对比。"""
         try:
             xml_content = self._fetch_feed()
             if not xml_content:
@@ -118,7 +105,7 @@ class UpdateService:
             version = item.findtext("sparkle:version", default="", namespaces=ns)
             short = item.findtext("sparkle:shortVersionString", default="", namespaces=ns)
             desc = item.findtext("description", default="")
-            desc = self._strip_html(desc)
+            desc = strip_html(desc)
             enclosure = item.find("enclosure")
             if enclosure is None:
                 return None
@@ -135,24 +122,6 @@ class UpdateService:
         except Exception as e:
             print(f"[Update] 解析 appcast 失败：{e}")
             return None
-
-    @staticmethod
-    def _strip_html(text: str) -> str:
-        """去除 HTML 标签，保留纯文本（换行符替代 <li>/<br>）。"""
-        import re
-        text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"</li>", "\n", text, flags=re.IGNORECASE)
-        text = re.sub(r"<[^>]+>", "", text)
-        lines = [ln.strip() for ln in text.splitlines()]
-        lines = [ln for ln in lines if ln]
-        return "\n".join(lines)
-
-    @staticmethod
-    def _encode_url(url: str) -> str:
-        """对 URL 中的非 ASCII 字符（如中文文件名）进行百分号编码。"""
-        parts = urlsplit(url)
-        path = quote(parts.path, safe="/")
-        return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
 
     def _is_newer(self, remote_version: str) -> bool:
         """对比版本号，remote > local 返回 True。"""
@@ -175,18 +144,9 @@ class UpdateService:
         dmg_url: str,
         progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> Optional[str]:
-        """
-        下载 DMG 到临时目录。
-
-        Args:
-            dmg_url:           DMG 下载 URL
-            progress_callback: 回调(downloaded_bytes, total_bytes)，None 表示不回调
-
-        Returns:
-            下载后的 DMG 本地路径，或 None（失败）
-        """
+        """下载 DMG 到临时目录。"""
         try:
-            url = self._encode_url(dmg_url)
+            url = encode_url(dmg_url)
             req = Request(url, headers={"User-Agent": "worktime-tracker"})
             with urlopen(req, timeout=300) as resp:
                 total = int(resp.headers.get("Content-Length", 0))
@@ -228,12 +188,7 @@ class UpdateService:
     # ─── 安装 + 重启 ──────────────────────────────────────
 
     def install_and_restart(self, dmg_path: str) -> bool:
-        """
-        写外部 updater 脚本 → 退出主进程 → 脚本挂载 DMG → 替换 .app → 重启。
-
-        Returns:
-            True（脚本已启动），False（无法获取 app 路径）
-        """
+        """写外部 updater 脚本 → 退出主进程 → 脚本挂载 DMG → 替换 .app → 重启。"""
         app_path = self._get_app_path()
         if not app_path:
             print("[Update] 无法获取 .app 路径，开发环境不自动更新")
@@ -270,18 +225,11 @@ rm -f "{updater_script}"
         return True
 
     def _get_app_path(self) -> Optional[str]:
-        """
-        获取当前 .app 的完整路径。
-
-        打包后通过 sys.executable 回溯 .app；
-        开发环境返回 None。
-        """
+        """获取当前 .app 的完整路径。"""
         try:
             if not getattr(sys, "frozen", False):
                 return None
             exe = sys.executable
-            # exe = xxx.app/Contents/MacOS/可执行名
-            # 回溯到 xxx.app
             contents = os.path.dirname(os.path.dirname(exe))
             app_path = os.path.dirname(contents)
             if app_path.endswith(".app"):
@@ -293,14 +241,14 @@ rm -f "{updater_script}"
     # ─── 设置读写 ─────────────────────────────────────────
 
     def is_auto_update_enabled(self) -> bool:
-        return database.get_setting(SETTING_AUTO_UPDATE, "0") == "1"
+        return self._settings.get(SETTING_AUTO_UPDATE, "0") == "1"
 
     def set_auto_update(self, enabled: bool):
-        database.set_setting(SETTING_AUTO_UPDATE, "1" if enabled else "0")
+        self._settings.set(SETTING_AUTO_UPDATE, "1" if enabled else "0")
 
     def should_check_now(self, interval: int) -> bool:
         """判断是否到检查时间（基于上次检查时间戳）。"""
-        last = database.get_setting(SETTING_LAST_UPDATE_CHECK, "")
+        last = self._settings.get(SETTING_LAST_UPDATE_CHECK, "")
         if not last:
             return True
         try:
@@ -310,4 +258,4 @@ rm -f "{updater_script}"
             return True
 
     def mark_checked(self):
-        database.set_setting(SETTING_LAST_UPDATE_CHECK, datetime.now().isoformat())
+        self._settings.set(SETTING_LAST_UPDATE_CHECK, datetime.now().isoformat())

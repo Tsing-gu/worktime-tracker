@@ -17,7 +17,6 @@ settings_dialog - 设置弹窗
 
 from PySide6 import QtWidgets, QtCore
 
-from src.data import database
 from src.config import (
     SETTING_DAILY_REQUIRED_HOURS,
     SETTING_WEEKLY_WORK_DAYS,
@@ -35,16 +34,17 @@ class SettingsDialog(QtWidgets.QDialog):
     """
     设置弹窗对话框。
 
-    从 database 读取当前设置值填充表单，
+    从传入的 settings dict 读取当前设置值填充表单，
     用户确认后通过 get_values() 返回更新值字典。
     """
 
-    def __init__(self, parent=None):
+    def __init__(self, settings: dict, parent=None):
         """
-        初始化设置弹窗，从 DB 读取当前值填充控件。
+        初始化设置弹窗，从 settings dict 读取当前值填充控件。
 
         Args:
-            parent: 父窗口
+            settings: 当前设置字典 {key: value}
+            parent:   父窗口
         """
         super().__init__(parent)
         self.setWindowTitle("设置")
@@ -58,53 +58,53 @@ class SettingsDialog(QtWidgets.QDialog):
         self.daily_hours = QtWidgets.QDoubleSpinBox()
         self.daily_hours.setRange(1, 24)
         self.daily_hours.setSingleStep(0.5)
-        self.daily_hours.setValue(float(database.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0")))
+        self.daily_hours.setValue(float(settings.get(SETTING_DAILY_REQUIRED_HOURS, "8.0")))
         layout.addRow("每日工时要求（小时）", self.daily_hours)
 
         # ── 每周工作天数 ──
         self.weekly_days = QtWidgets.QSpinBox()
         self.weekly_days.setRange(1, 7)
-        self.weekly_days.setValue(int(database.get_setting(SETTING_WEEKLY_WORK_DAYS, "5")))
+        self.weekly_days.setValue(int(settings.get(SETTING_WEEKLY_WORK_DAYS, "5")))
         layout.addRow("每周工作天数", self.weekly_days)
 
         # ── 下班判定：离开等待时长 ──
         self.off_threshold = QtWidgets.QSpinBox()
         self.off_threshold.setRange(5, 480)
         self.off_threshold.setSuffix(" 分钟")
-        self.off_threshold.setValue(int(database.get_setting(SETTING_OFF_THRESHOLD_MINUTES, "60")))
+        self.off_threshold.setValue(int(settings.get(SETTING_OFF_THRESHOLD_MINUTES, "60")))
         layout.addRow("下班判定：离开等待时长", self.off_threshold)
 
         # ── 下班判定：时间下限 ──
         self.off_floor = QtWidgets.QTimeEdit()
-        floor_str = database.get_setting(SETTING_OFF_TIME_FLOOR, "19:00")
+        floor_str = settings.get(SETTING_OFF_TIME_FLOOR, "19:00")
         h, m = map(int, floor_str.split(":"))
         self.off_floor.setTime(QtCore.QTime(h, m))
         layout.addRow("下班判定：时间下限", self.off_floor)
 
         # ── 上班检测起始时间 ──
         self.work_start_floor = QtWidgets.QTimeEdit()
-        start_floor_str = database.get_setting(SETTING_WORK_START_FLOOR, "06:00")
+        start_floor_str = settings.get(SETTING_WORK_START_FLOOR, "06:00")
         sh, sm = map(int, start_floor_str.split(":"))
         self.work_start_floor.setTime(QtCore.QTime(sh, sm))
         layout.addRow("上班检测起始时间", self.work_start_floor)
 
         # ── 通知开关 ──
         self.notify_target = QtWidgets.QCheckBox("达到每日工时要求时弹窗提醒")
-        self.notify_target.setChecked(database.get_setting(SETTING_NOTIFY_ON_TARGET, "1") == "1")
+        self.notify_target.setChecked(settings.get(SETTING_NOTIFY_ON_TARGET, "1") == "1")
         layout.addRow(self.notify_target)
 
         self.notify_off = QtWidgets.QCheckBox("检测到下班时系统通知")
-        self.notify_off.setChecked(database.get_setting(SETTING_NOTIFY_ON_OFF, "1") == "1")
+        self.notify_off.setChecked(settings.get(SETTING_NOTIFY_ON_OFF, "1") == "1")
         layout.addRow(self.notify_off)
 
         # ── 开机自启动 ──
         self.auto_start = QtWidgets.QCheckBox("开机自动启动")
-        self.auto_start.setChecked(database.get_setting(SETTING_AUTO_START, "0") == "1")
+        self.auto_start.setChecked(settings.get(SETTING_AUTO_START, "0") == "1")
         layout.addRow(self.auto_start)
 
         # ── 节假日自动获取 ──
         self.holiday_auto = QtWidgets.QCheckBox("自动获取节假日")
-        self.holiday_auto.setChecked(database.get_setting(SETTING_HOLIDAY_AUTO_EXCLUDE, "1") == "1")
+        self.holiday_auto.setChecked(settings.get(SETTING_HOLIDAY_AUTO_EXCLUDE, "1") == "1")
         layout.addRow(self.holiday_auto)
 
         # ── 检查更新按钮 ──

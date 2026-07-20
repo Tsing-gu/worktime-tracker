@@ -6,15 +6,12 @@ confirm_dialog - 次日工时确认弹窗
 每个工作日打开电脑时弹出，显示前一天的上下班时间和工时，
 用户可确认或修改下班时间。
 
-版本: 0.4.2
+版本: 0.8.0
 """
 
 from datetime import datetime, date, timedelta
 
 from PySide6 import QtWidgets, QtCore
-
-from src.data import database
-from src.config import SETTING_DAILY_REQUIRED_HOURS
 
 
 class ConfirmYesterdayDialog(QtWidgets.QDialog):
@@ -25,12 +22,14 @@ class ConfirmYesterdayDialog(QtWidgets.QDialog):
     如果有异常记录，一并显示警告。
     """
 
-    def __init__(self, work_date: date, parent=None):
+    def __init__(self, work_date: date, daily: dict, required: float, parent=None):
         """
-        初始化确认弹窗，加载指定日期的工时记录。
+        初始化确认弹窗，从传入的记录数据填充界面。
 
         Args:
             work_date: 要确认的工作日日期
+            daily:     该日的工时记录 dict（可为 None）
+            required:  每日工时要求（小时）
             parent:    父窗口
         """
         super().__init__(parent)
@@ -42,14 +41,10 @@ class ConfirmYesterdayDialog(QtWidgets.QDialog):
         layout.setContentsMargins(24, 24, 24, 16)
         layout.setSpacing(12)
 
-        # ── 从 DB 读取记录 ──
-        daily = database.get_daily_worktime(work_date)
+        # ── 从传入的记录读取 ──
         start_str = daily.get("start_time", "") if daily else ""
         end_str = daily.get("end_time", "") if daily else ""
         total = daily.get("total_hours", 0) if daily else 0
-        # 优先从 DB 记录读 required_hours，fallback 到 settings
-        rec_required = daily.get("required_hours") if daily else None
-        required = rec_required if rec_required is not None else float(database.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
         anomaly_note = daily.get("anomaly_note") if daily else None
 
         # ── 日期 ──
@@ -88,12 +83,7 @@ class ConfirmYesterdayDialog(QtWidgets.QDialog):
         layout.addWidget(btn_box)
 
     def get_end_time(self) -> datetime:
-        """
-        获取用户修改后的下班时间。
-
-        Returns:
-            下班时间 datetime（日期部分为 work_date）
-        """
+        """获取用户修改后的下班时间。"""
         t = self.end_time_edit.time()
         return datetime(self.work_date.year, self.work_date.month, self.work_date.day,
                          t.hour(), t.minute())
