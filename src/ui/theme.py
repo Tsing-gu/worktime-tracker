@@ -271,10 +271,6 @@ def build_qss(t: dict) -> str:
         border: 1px solid {t['stroke']};
         background: {t['input_bg']};
     }}
-    QCheckBox::indicator:checked {{
-        background: {t['primary']};
-        border-color: {t['primary']};
-    }}
     QComboBox {{
         background-color: {t['input_bg']};
         color: {t['main']};
