@@ -24,10 +24,19 @@ version - 版本管理 + CHANGELOG 自动更新
 """
 
 import os
+import sys
 from datetime import date
 
 # 项目根目录（src/utils/ 往上两级）
-_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# 打包后从 _MEIPASS 读 VERSION/CHANGELOG，开发环境从项目根目录读
+if getattr(sys, "frozen", False):
+    # PyInstaller .app 模式下 _MEIPASS = Contents/MacOS，VERSION 放在 Resources
+    _base = os.path.dirname(sys._MEIPASS)  # Contents
+    _PROJECT_ROOT = os.path.join(_base, "Resources")
+    if not os.path.exists(os.path.join(_PROJECT_ROOT, "VERSION")):
+        _PROJECT_ROOT = sys._MEIPASS
+else:
+    _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 _VERSION_FILE = os.path.join(_PROJECT_ROOT, "VERSION")
 _CHANGELOG_FILE = os.path.join(_PROJECT_ROOT, "CHANGELOG.md")
 
