@@ -108,6 +108,7 @@ class UpdateService:
             version = item.findtext("sparkle:version", default="", namespaces=ns)
             short = item.findtext("sparkle:shortVersionString", default="", namespaces=ns)
             desc = item.findtext("description", default="")
+            desc = self._strip_html(desc)
             enclosure = item.find("enclosure")
             if enclosure is None:
                 return None
@@ -124,6 +125,17 @@ class UpdateService:
         except Exception as e:
             print(f"[Update] 解析 appcast 失败：{e}")
             return None
+
+    @staticmethod
+    def _strip_html(text: str) -> str:
+        """去除 HTML 标签，保留纯文本（换行符替代 <li>/<br>）。"""
+        import re
+        text = re.sub(r"<br\s*/?>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"</li>", "\n", text, flags=re.IGNORECASE)
+        text = re.sub(r"<[^>]+>", "", text)
+        lines = [ln.strip() for ln in text.splitlines()]
+        lines = [ln for ln in lines if ln]
+        return "\n".join(lines)
 
     def _is_newer(self, remote_version: str) -> bool:
         """对比版本号，remote > local 返回 True。"""
