@@ -1,3 +1,20 @@
+## [0.8.0] - 2026-07-20
+
+- **重构**: 全面 OOP 重构，所有散装模块级函数改为类封装
+  - data 层: Database 基类 + 4 Repository（Settings/Activity/DailyWorktime/Holiday），事务边界
+  - core 层: WorktimeCalculator 类（消除 get_period_stats/get_month_stats 100+ 行重复）
+  - core 层: HolidayService 类（构造期注入 HolidayRepository，不再直接 import database）
+  - core 层: WorkTracker 状态私有化 + is_started/is_off 查询方法
+  - core 层: date_utils 从 database 迁出纯日期函数
+  - services 层: WorktimeService 注入 Repository+Calculator，消除裸 SQL，补齐 get_settings/update_settings
+  - services 层: WorktimeExporter 类（消除 CSV/Excel 字段提取重复）
+  - services 层: UpdateService 注入 SettingsRepository，静态方法下沉到 utils
+  - ui 层: 删除所有直接 import database（6 处改走 service）
+  - ui 层: ConfirmYesterdayDialog 改为参数传入数据
+  - utils 层: 新增 paths/text/net 工具文件
+- **新增**: ARCHITECTURE.md 架构与调用关系文档
+- **新增**: CLAUDE.md + docs/CODING_RULES.md 编码规则（强制 OOP + 分层 + 同步更新）
+
 ## [0.7.3] - 2026-07-20
 
 - **修复**: 主页面进度条不显示：内联样式只设 chunk 遮蔽了全局 track 底色，现统一设置 track+chunk

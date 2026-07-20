@@ -23,14 +23,16 @@ from datetime import datetime, date, timedelta
 from PySide6 import QtWidgets, QtCore, QtGui
 
 from src.config import (
-    POLL_INTERVAL_MS,
     SETTING_DAILY_REQUIRED_HOURS,
     SETTING_NOTIFY_ON_TARGET,
     SETTING_NOTIFY_ON_OFF,
+    SETTING_HOLIDAY_AUTO_EXCLUDE,
+    POLL_INTERVAL_MS,
 )
 from src.services.worktime_service import WorktimeService
-from src.services import notification_service, export_service
+from src.services import notification_service
 from src.services.update_service import UpdateService
+from src.utils.paths import resource_path
 from src.ui.theme import get_theme, build_qss
 from src.ui.settings_dialog import SettingsDialog
 from src.ui.calendar_dialog import CalendarHistoryDialog
@@ -66,7 +68,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # 唯一的业务层入口
         self.service = WorktimeService()
-        self.update_service = UpdateService()
+        self.update_service = UpdateService(self.service.settings_repo)
         self.checked_yesterday = False
         self._tray_popup_menu = None  # 当前时长卡菜单
         self._update_checking = False  # 防止重复检查
@@ -80,7 +82,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _init_ui(self):
         """构建主界面所有可见元素。"""
-        self.setWindowIcon(QtGui.QIcon(self._resource_path('resources/app.icns')))
+        self.setWindowIcon(QtGui.QIcon(resource_path('resources/app.icns')))
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         layout = QtWidgets.QVBoxLayout(central)
@@ -212,7 +214,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """初始化菜单栏托盘图标及其右键菜单。"""
         self.tray = QtWidgets.QSystemTrayIcon()
         self.tray.setToolTip("工时计算器")
-        icon = QtGui.QIcon(self._resource_path('resources/app.icns'))
+        icon = QtGui.QIcon(resource_path('resources/app.icns'))
         if icon.isNull():
             icon = self.style().standardIcon(QtWidgets.QStyle.SP_ComputerIcon)
         self.tray.setIcon(icon)
@@ -299,18 +301,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh_ui()
 
     # ─── 窗口控制 ──────────────────────────────────────────
-
-    @staticmethod
-    def _resource_path(relative_path: str) -> str:
-        """获取资源文件的绝对路径，兼容开发环境和 PyInstaller 打包环境。"""
-        if getattr(sys, "frozen", False):
-            base = os.path.join(os.path.dirname(sys._MEIPASS), "Resources")
-            if not os.path.exists(os.path.join(base, relative_path)):
-                base = sys._MEIPASS
-            return os.path.join(base, relative_path)
-        else:
-            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            return os.path.join(project_root, relative_path)
 
     def show_normal(self):
         """显示并激活主窗口（从隐藏/最小化状态恢复）。"""
@@ -497,13 +487,8 @@ class MainWindow(QtWidgets.QMainWindow):
         # ── 达标通知 ──
         elif result.event == "target_reached":
             if self._get_setting_bool(SETTING_NOTIFY_ON_TARGET, True):
-                # 从当天 DB 记录读 required_hours，fallback 到 settings
-                from src.data import database as _db
-                _now = datetime.now()
-                _wd = _db.compute_work_date(_now)
-                _daily = _db.get_daily_worktime(_wd)
-                _req = _daily.get("required_hours") if _daily else None
-                required = _req if _req is not None else float(self._get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+                status = self.service.get_today_status()
+                required = status.required_hours
                 notification_service.notify_target_reached(result.worked_hours, required)
         # ── 下班后回来 → 弹窗确认恢复 ──
         elif result.event == "back":
@@ -615,7 +600,8 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         prev, daily = result
-        dialog = ConfirmYesterdayDialog(prev, self)
+        required = self.service.get_required_hours()
+        dialog = ConfirmYesterdayDialog(prev, daily, required, self)
         if dialog.exec() == QtWidgets.QDialog.Accepted:
             end_time = dialog.get_end_time()
             self.service.confirm_yesterday(prev, end_time)
@@ -735,19 +721,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_settings(self):
         """打开设置弹窗，确认后保存设置。"""
-        dialog = SettingsDialog(self)
+        dialog = SettingsDialog(self.service.get_settings(), self)
         if dialog.exec() == QtWidgets.QDialog.Accepted:
-            from src.data import database
-            from src.config import SETTING_DAILY_REQUIRED_HOURS
-            for key, value in dialog.get_values().items():
-                database.set_setting(key, value)
-            # 如果当天已有记录，更新 required_hours
-            now = datetime.now()
-            work_date = database.compute_work_date(now)
-            daily = database.get_daily_worktime(work_date)
-            if daily and daily.get("start_time"):
-                daily_required = float(database.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
-                database.upsert_daily_worktime(work_date, required_hours=daily_required)
+            self.service.update_settings(dialog.get_values())
             self.refresh_ui()
 
     def on_history(self):
@@ -780,10 +756,11 @@ class MainWindow(QtWidgets.QMainWindow):
             f"导出本月数据（{start} ~ {end}）？\n点击 Yes 导出 Excel，No 导出 CSV",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel,
         )
+        exporter = self.service.get_exporter()
         if choice == QtWidgets.QMessageBox.Yes:
-            path = export_service.export_excel(start, end)
+            path = exporter.to_excel(start, end)
         elif choice == QtWidgets.QMessageBox.No:
-            path = export_service.export_csv(start, end)
+            path = exporter.to_csv(start, end)
         else:
             return
         QtWidgets.QMessageBox.information(self, "导出成功", f"文件已保存到：\n{path}")
@@ -810,8 +787,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _get_setting(self, key: str, default: str = "") -> str:
         """读取设置值的快捷方法。"""
-        from src.data import database
-        return database.get_setting(key, default)
+        return self.service.get_setting(key, default)
 
     def _get_setting_bool(self, key: str, default: bool = False) -> bool:
         """读取布尔型设置值的快捷方法。"""

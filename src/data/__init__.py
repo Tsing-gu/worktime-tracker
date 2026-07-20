@@ -3,8 +3,12 @@
 data - 数据层
 ==============
 
-本层是唯一直接操作 SQLite 数据库的模块。
+本层是唯一直接操作 SQLite 数据库的层。
 
-- database: SQLite 增删改查操作
-- models:   数据模型 dataclass（在 DB 行与业务对象之间转换）
+- database:       Database 基类（连接管理 + 事务边界）
+- settings_repo:  SettingsRepository（settings 表）
+- activity_repo:  ActivityRepository（activity_events 表）
+- worktime_repo:  DailyWorktimeRepository（daily_worktime 表）
+- holiday_repo:   HolidayRepository（holidays 表）
+- models:         数据模型 dataclass
 """

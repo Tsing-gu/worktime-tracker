@@ -4,18 +4,20 @@ worktime_service - 工时业务编排层
 ====================================
 
 连接 core 业务逻辑层与 data 数据层，向上为 ui 层提供高层 API。
+UI 层只调此服务，不直接操作 database / tracker / calculator。
 
 核心职责:
-    - poll_and_record():  执行轮询 + 持久化活动记录 + 处理上下班事件
-    - get_today_status():  获取今日实时状态
-    - get_week_stats():    获取周工时统计
-    - get_month_stats():   获取月工时统计
-    - manual_off():        手动下班
-    - resume_after_off():  下班后恢复计时
-    - check_yesterday():   次日确认检查
-    - ensure_start():      启动时回溯上班时间
+    - init():               初始化 + 回溯上班时间
+    - poll_and_record():    执行轮询 + 持久化活动记录 + 处理上下班事件
+    - get_today_status():   获取今日实时状态
+    - get_period_stats():   获取本期工时统计
+    - get_month_stats():    获取本月工时统计
+    - manual_off():         手动下班
+    - resume_after_off():   下班后恢复计时
+    - check_yesterday():     次日确认检查
+    - get_settings/update_settings: 设置读写
 
-版本: 0.4.2
+版本: 0.8.0
 """
 
 from datetime import datetime, date, timedelta
@@ -31,18 +33,24 @@ from src.config import (
     SETTING_NOTIFY_ON_OFF,
     SETTING_HOLIDAY_AUTO_EXCLUDE,
     LEAVE_TYPES,
+    HOLIDAY_API_URLS,
+    HOLIDAY_CACHE_FILE,
 )
-from src.data import database
-from src.data.models import WeekStats, MonthStats, TodayStatus, PeriodStats
+from src.data.models import TodayStatus, PeriodStats, WeekStats
+from src.data.settings_repo import SettingsRepository
+from src.data.activity_repo import ActivityRepository
+from src.data.worktime_repo import DailyWorktimeRepository
+from src.data.holiday_repo import HolidayRepository
 from src.core.tracker import WorkTracker, PollResult
-from src.core import calculator
-from src.core import holiday
+from src.core.calculator import WorktimeCalculator
+from src.core.holiday_service import HolidayService
+from src.core.date_utils import compute_work_date
+from src.services.export_service import WorktimeExporter
 from src.utils.system import get_first_active_from_pmset
 
 
 class WorktimeService:
-    """
-    工时业务编排服务。
+    """工时业务编排服务。
 
     封装 tracker + calculator + database 的完整业务流程，
     UI 层只需调用此服务，不直接操作底层模块。
@@ -55,29 +63,41 @@ class WorktimeService:
     """
 
     def __init__(self):
-        """初始化服务，创建内部 tracker 实例。"""
+        """初始化服务，创建内部 tracker 实例和各仓储/计算器。"""
         self.tracker = WorkTracker()
         self.current_work_date: Optional[date] = None
-        self.checked_yesterday = False  # 是否已检查次日确认
-        self._activities_cleaned_date: Optional[date] = None  # 当天是否已清理过期活动记录
+        self._checked_yesterday = False
+        self._activities_cleaned_date: Optional[date] = None
+
+        # 仓储实例
+        self.settings_repo = SettingsRepository()
+        self.activity_repo = ActivityRepository()
+        self.worktime_repo = DailyWorktimeRepository()
+        self.holiday_repo = HolidayRepository()
+
+        # 节假日服务（注入 holiday_repo）
+        self.holiday_service = HolidayService(
+            api_urls=HOLIDAY_API_URLS,
+            cache_file=HOLIDAY_CACHE_FILE,
+            holiday_repo=self.holiday_repo,
+        )
+
+        # 计算器（延迟初始化，需要从 DB 读取配置后才能构建）
+        self._calculator: Optional[WorktimeCalculator] = None
 
     # ─── 初始化 ────────────────────────────────────────────
 
     def init(self):
-        """
-        初始化数据库 + 节假日 + 回溯上班时间。
-
-        应在程序启动时调用一次。
-        """
-        database.init_db()
+        """初始化数据库 + 节假日 + 回溯上班时间。"""
+        from src.data.database import Database
+        Database.init()
         today = date.today()
-        holiday.ensure_holidays_loaded(today.year)
-        self.current_work_date = database.compute_work_date(datetime.now())
+        self.holiday_service.ensure_loaded(today.year)
+        self.current_work_date = compute_work_date(datetime.now())
         self.ensure_start()
 
     def ensure_start(self):
-        """
-        回溯或校验当天上班时间。
+        """回溯或校验当天上班时间。
 
         统一入口，通过 tracker.check_start_recorded() 按优先级判定:
             1. DB 已有手动记录 → 不覆盖
@@ -86,14 +106,11 @@ class WorktimeService:
             4. 无 DB 记录 + pmset 有记录 → 回填
             5. 无 DB 记录 + 当前 HID 活跃 → 回推
             6. 以上都不满足 → 静默等待下一次轮询
-
-        pmset 日志可能被截断（日志只保留最近条目），
-        此时不报错，等待下次轮询用 HID 活动回推。
         """
         now = datetime.now()
-        work_date = database.compute_work_date(now)
-        daily = database.get_daily_worktime(work_date)
-        work_start_floor = database.get_setting(SETTING_WORK_START_FLOOR, "06:00")
+        work_date = compute_work_date(now)
+        daily = self.worktime_repo.get(work_date)
+        work_start_floor = self.settings_repo.get(SETTING_WORK_START_FLOOR, "06:00")
 
         existing_start = None
         existing_source = None
@@ -116,27 +133,21 @@ class WorktimeService:
             pmset_start=pmset_start,
         )
 
-        # 如果 tracker 返回了需要记录的上班时间 → 写入 DB（同时写入 required_hours 快照）
         if start_to_record:
-            daily_required = float(database.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
-            database.upsert_daily_worktime(work_date, start_time=start_to_record, source="auto", required_hours=daily_required)
+            daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+            self.worktime_repo.upsert(
+                work_date, start_time=start_to_record, source="auto",
+                required_hours=daily_required,
+            )
 
     # ─── 轮询 + 持久化 ────────────────────────────────────
 
     def poll_and_record(self) -> PollResult:
-        """
-        执行一次完整轮询: 读取 HID → 记录活动 → 判定事件 → 持久化。
-
-        上班记录统一由 ensure_start() → check_start_recorded() 处理，
-        本方法不再自行写入上班时间，避免绕过优先级判定。
-
-        Returns:
-            PollResult 实例，包含事件类型和关联数据
-        """
+        """执行一次完整轮询: 读取 HID → 记录活动 → 判定事件 → 持久化。"""
         now = datetime.now()
 
         # 跨天检测
-        new_work_date = database.compute_work_date(now)
+        new_work_date = compute_work_date(now)
         if new_work_date != self.current_work_date:
             self.tracker.reset_for_new_day()
             self.current_work_date = new_work_date
@@ -147,17 +158,17 @@ class WorktimeService:
         active = is_currently_active(idle)
 
         # 持久化活动记录
-        database.record_activity(now, idle, active)
+        self.activity_repo.record(now, idle, active)
 
-        # 每天首次轮询时清理过期活动记录（保留 14 天），避免频繁删表
+        # 每天首次轮询时清理过期活动记录（保留 14 天）
         today = now.date()
         if self._activities_cleaned_date != today:
-            database.cleanup_old_activities(days=14)
+            self.activity_repo.cleanup(days=14)
             self._activities_cleaned_date = today
 
         # 获取今日 DB 记录
-        work_date = database.compute_work_date(now)
-        daily = database.get_daily_worktime(work_date)
+        work_date = compute_work_date(now)
+        daily = self.worktime_repo.get(work_date)
 
         start_time = None
         daily_end_time = None
@@ -170,17 +181,16 @@ class WorktimeService:
             daily_source = daily.get("source", "auto")
 
         # 如果 DB 中无上班记录且 tracker 未记录上班 → 调用 ensure_start 补录
-        if not start_time and not self.tracker.start_recorded:
+        if not start_time and not self.tracker.is_started():
             self.ensure_start()
-            # 重新读取 DB（ensure_start 可能已写入）
-            daily = database.get_daily_worktime(work_date)
+            daily = self.worktime_repo.get(work_date)
             if daily and daily.get("start_time"):
                 start_time = datetime.strptime(daily["start_time"], "%Y-%m-%d %H:%M:%S")
 
         # 读取设置
-        off_threshold = float(database.get_setting(SETTING_OFF_THRESHOLD_MINUTES, "60"))
-        off_floor = database.get_setting(SETTING_OFF_TIME_FLOOR, "19:00")
-        daily_required = float(database.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+        off_threshold = float(self.settings_repo.get(SETTING_OFF_THRESHOLD_MINUTES, "60"))
+        off_floor = self.settings_repo.get(SETTING_OFF_TIME_FLOOR, "19:00")
+        daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
 
         # 调用 tracker 纯逻辑判定
         result = self.tracker.poll(
@@ -195,8 +205,7 @@ class WorktimeService:
 
         # 根据 event 类型持久化
         if result.event == "off":
-            # 自动下班 → 写入 end_time + total_hours + required_hours
-            database.upsert_daily_worktime(
+            self.worktime_repo.upsert(
                 work_date,
                 end_time=result.off_time,
                 total_hours=result.worked_hours,
@@ -204,23 +213,16 @@ class WorktimeService:
                 is_confirmed=0,
                 source="auto",
             )
-        # "back" 事件由 UI 层弹窗确认后调用 resume_after_off()
-        # "start"、"target_reached"、"manual_off" 等事件由调用方决定后续操作
 
         return result
 
     # ─── 手动下班 ──────────────────────────────────────────
 
     def manual_off(self) -> PollResult:
-        """
-        手动下班: 以当前时间记为下班时间并持久化。
-
-        Returns:
-            PollResult(event="manual_off", ...)
-        """
+        """手动下班: 以当前时间记为下班时间并持久化。"""
         now = datetime.now()
-        work_date = database.compute_work_date(now)
-        daily = database.get_daily_worktime(work_date)
+        work_date = compute_work_date(now)
+        daily = self.worktime_repo.get(work_date)
 
         if not daily or not daily.get("start_time"):
             return PollResult(event="no_start")
@@ -228,9 +230,8 @@ class WorktimeService:
         start_time = datetime.strptime(daily["start_time"], "%Y-%m-%d %H:%M:%S")
         result = self.tracker.manual_off_work(start_time, now)
 
-        # 持久化（写入 required_hours 快照）
-        daily_required = float(database.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
-        database.upsert_daily_worktime(
+        daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+        self.worktime_repo.upsert(
             work_date,
             end_time=result.off_time,
             total_hours=result.worked_hours,
@@ -244,196 +245,117 @@ class WorktimeService:
     # ─── 恢复计时（下班后回来） ────────────────────────────
 
     def resume_after_off(self):
-        """
-        下班后用户回来，确认恢复计时。
+        """下班后用户回来，确认恢复计时。
 
-        操作:
-            1. 删除 DB 中的 end_time 和 total_hours（恢复为未下班状态）
-            2. 重置 tracker 的下班/回来标记
+        通过 worktime_repo.clear_end_time 消除下班状态，替代裸 SQL。
         """
-        now = datetime.now()
-        work_date = database.compute_work_date(now)
-        # 清除下班时间，恢复为"工作中"状态
-        # 使用 UPDATE 显式置空 end_time 和 total_hours
-        conn = database.get_connection()
-        conn.execute(
-            "UPDATE daily_worktime SET end_time = NULL, total_hours = NULL WHERE work_date = ?",
-            (work_date.isoformat(),),
-        )
-        conn.commit()
-        conn.close()
-        # 重置 tracker 状态
+        work_date = compute_work_date(datetime.now())
+        self.worktime_repo.clear_end_time(work_date)
         self.tracker.resume_after_off()
 
     # ─── 今日状态 ──────────────────────────────────────────
 
     def get_today_status(self) -> TodayStatus:
-        """
-        获取今日实时工时状态。
-
-        Returns:
-            TodayStatus 对象
-        """
-        today = database.compute_work_date(datetime.now())
-        daily = database.get_daily_worktime(today)
-        daily_required = float(database.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
-        return calculator.get_today_status(today, daily, daily_required, now=datetime.now())
+        """获取今日实时工时状态。"""
+        today = compute_work_date(datetime.now())
+        daily = self.worktime_repo.get(today)
+        daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+        return self._get_calculator().today_status(today, daily, now=datetime.now())
 
     # ─── 本期统计 ────────────────────────────────────────────
 
     def get_period_stats(self) -> PeriodStats:
-        """
-        获取本期工时统计。
-
-        本期 = 两个连续非工作日段之间的工作日区间。
-
-        Returns:
-            PeriodStats 对象
-        """
-        today = database.compute_work_date(datetime.now())
-        from src.core.calculator import get_period_range
-        holidays = database.get_all_holidays()
-        daily_required = float(database.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
-        holiday_auto = database.get_setting(SETTING_HOLIDAY_AUTO_EXCLUDE, "1") == "1"
+        """获取本期工时统计。"""
+        today = compute_work_date(datetime.now())
+        from src.core.date_utils import get_period_range
+        holidays = self.holiday_repo.get_all()
 
         period = get_period_range(today, holidays)
         if period is None:
             return PeriodStats(is_rest=True)
         period_start, period_end = period
 
-        records = database.get_date_range_worktime(period_start, period_end)
-
-        return calculator.get_period_stats(
-            today, records, holidays, daily_required, holiday_auto,
-            now=datetime.now(),
-        )
+        records = self.worktime_repo.get_range(period_start, period_end)
+        return self._get_calculator().period_stats(today, records, now=datetime.now())
 
     # ─── 月统计 ────────────────────────────────────────────
 
     def get_month_stats(self) -> PeriodStats:
-        """
-        获取本月工时统计。
-
-        Returns:
-            PeriodStats 对象
-        """
-        today = database.compute_work_date(datetime.now())
-        from src.core.calculator import get_month_range
+        """获取本月工时统计。"""
+        today = compute_work_date(datetime.now())
+        from src.core.date_utils import get_month_range
         month_start, month_end = get_month_range(today)
-        records = database.get_date_range_worktime(month_start, month_end)
-        holidays = database.get_all_holidays()
-        daily_required = float(database.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
-        holiday_auto = database.get_setting(SETTING_HOLIDAY_AUTO_EXCLUDE, "1") == "1"
-
-        return calculator.get_month_stats(
-            today, records, holidays, daily_required, holiday_auto,
-            now=datetime.now(),
-        )
+        records = self.worktime_repo.get_range(month_start, month_end)
+        return self._get_calculator().month_stats(today, records, now=datetime.now())
 
     # ─── 次日确认 ──────────────────────────────────────────
 
     def check_yesterday(self) -> Optional[tuple]:
-        """
-        检查是否需要弹出次日确认提醒。
-
-        返回需要确认的前一个工作日及其记录，供 UI 弹窗使用。
-        如果已确认或无需确认，返回 None 并标记 self.checked_yesterday = True。
-
-        Returns:
-            (prev_workday, daily_record) 元组，或 None
-        """
+        """检查是否需要弹出次日确认提醒。"""
         today = date.today()
-        holidays = database.get_all_holidays()
-        holiday_auto = database.get_setting(SETTING_HOLIDAY_AUTO_EXCLUDE, "1") == "1"
-        prev = calculator.get_previous_workday(today, holidays, holiday_auto)
+        prev = self._get_calculator().previous_workday(today)
 
         if prev is None:
-            self.checked_yesterday = True
+            self._checked_yesterday = True
             return None
 
-        daily = database.get_daily_worktime(prev)
+        daily = self.worktime_repo.get(prev)
         if daily and daily.get("is_confirmed") == 1:
-            self.checked_yesterday = True
+            self._checked_yesterday = True
             return None
 
         if daily and daily.get("start_time"):
-            self.checked_yesterday = True
+            self._checked_yesterday = True
             return (prev, daily)
         else:
-            self.checked_yesterday = True
+            self._checked_yesterday = True
             return None
 
-    def confirm_yesterday(self, prev_date: date, end_time: datetime):
-        """
-        确认前一天的下班时间并持久化。
+    def should_check_yesterday(self) -> bool:
+        """是否需要检查次日确认。"""
+        return not self._checked_yesterday
 
-        Args:
-            prev_date: 前一个工作日日期
-            end_time:  用户确认/修改后的下班时间
-        """
-        daily = database.get_daily_worktime(prev_date)
+    def confirm_yesterday(self, prev_date: date, end_time: datetime):
+        """确认前一天的下班时间并持久化。"""
+        daily = self.worktime_repo.get(prev_date)
         if daily and daily.get("start_time"):
             start_time = datetime.strptime(daily["start_time"], "%Y-%m-%d %H:%M:%S")
             if end_time < start_time:
-                end_time += timedelta(days=1)  # 跨天处理
+                end_time += timedelta(days=1)
             total = (end_time - start_time).total_seconds() / 3600.0
-            database.upsert_daily_worktime(
+            self.worktime_repo.upsert(
                 prev_date, end_time=end_time, total_hours=total, is_confirmed=1,
             )
         else:
-            database.upsert_daily_worktime(prev_date, is_confirmed=1)
+            self.worktime_repo.upsert(prev_date, is_confirmed=1)
 
     def skip_yesterday(self, prev_date: date):
-        """
-        跳过次日确认（标记为已确认但不修改数据）。
-
-        Args:
-            prev_date: 前一个工作日日期
-        """
-        database.upsert_daily_worktime(prev_date, is_confirmed=1)
+        """跳过次日确认（标记为已确认但不修改数据）。"""
+        self.worktime_repo.upsert(prev_date, is_confirmed=1)
 
     # ─── 请假 ──────────────────────────────────────────────
 
     def mark_leave(self, leave_date: date, leave_type: str):
-        """
-        标记请假。
-
-        Args:
-            leave_date:  请假日期
-            leave_type:  请假类型 (annual/sick/personal/compensatory)
-        """
+        """标记请假。"""
         type_name = LEAVE_TYPES.get(leave_type, leave_type)
-        database.upsert_daily_worktime(
+        self.worktime_repo.upsert(
             leave_date, leave_type=leave_type, note=f"请假-{type_name}"
         )
 
     # ─── 手动补录 ──────────────────────────────────────────
 
     def manual_record(self, work_dt: date, start_str: str, end_str: str) -> float:
-        """
-        手动补录某天的上下班时间。
-
-        Args:
-            work_dt:  工作日日期
-            start_str: 上班时间 "HH:MM"
-            end_str:   下班时间 "HH:MM"
-
-        Returns:
-            工时（小时）
-
-        Raises:
-            ValueError: 时间格式不正确
-        """
+        """手动补录某天的上下班时间。"""
         try:
             sh, sm = map(int, start_str.strip().split(":"))
             eh, em = map(int, end_str.strip().split(":"))
             start_dt = datetime(work_dt.year, work_dt.month, work_dt.day, sh, sm)
             end_dt = datetime(work_dt.year, work_dt.month, work_dt.day, eh, em)
             if end_dt < start_dt:
-                end_dt += timedelta(days=1)  # 跨天处理
+                end_dt += timedelta(days=1)
             total = (end_dt - start_dt).total_seconds() / 3600.0
-            daily_required = float(database.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
-            database.upsert_daily_worktime(
+            daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+            self.worktime_repo.upsert(
                 work_dt, start_time=start_dt, end_time=end_dt,
                 total_hours=total, required_hours=daily_required,
                 source="manual", is_confirmed=1,
@@ -445,28 +367,17 @@ class WorktimeService:
     # ─── 修改上班时间 ──────────────────────────────────────
 
     def edit_start_time(self, start_str: str) -> datetime:
-        """
-        修改今日上班时间。
-
-        Args:
-            start_str: 上班时间 "HH:MM"
-
-        Returns:
-            更新后的上班时间 datetime
-
-        Raises:
-            ValueError: 时间格式不正确
-        """
+        """修改今日上班时间。"""
         today = date.today()
         try:
             sh, sm = map(int, start_str.strip().split(":"))
-            floor_str = database.get_setting(SETTING_WORK_START_FLOOR, "06:00")
+            floor_str = self.settings_repo.get(SETTING_WORK_START_FLOOR, "06:00")
             fh, fm = map(int, floor_str.split(":"))
             if sh < fh or (sh == fh and sm < fm):
                 new_start = datetime(today.year, today.month, today.day, fh, fm)
             else:
                 new_start = datetime(today.year, today.month, today.day, sh, sm)
-            database.upsert_daily_worktime(today, start_time=new_start, source="manual")
+            self.worktime_repo.upsert(today, start_time=new_start, source="manual")
             return new_start
         except Exception as e:
             raise ValueError(f"请输入 HH:MM 格式，如 09:30\n\n错误：{e}")
@@ -474,46 +385,68 @@ class WorktimeService:
     # ─── 清除记录 ──────────────────────────────────────────
 
     def clear_record(self, work_date_str: str):
-        """
-        删除指定日期的工时记录。
+        """删除指定日期的工时记录。"""
+        self.worktime_repo.delete(work_date_str)
 
-        Args:
-            work_date_str: 工作日日期字符串 "YYYY-MM-DD"
-        """
-        database.delete_daily_worktime(work_date_str)
+    # ─── 设置读写 ──────────────────────────────────────────
+
+    def get_settings(self) -> dict:
+        """读取全部设置。"""
+        return self.settings_repo.get_all()
+
+    def update_settings(self, values: dict):
+        """批量更新设置。"""
+        for key, value in values.items():
+            self.settings_repo.set(key, value)
+        # 改设置后更新当天记录的 required_hours
+        now = datetime.now()
+        work_date = compute_work_date(now)
+        daily = self.worktime_repo.get(work_date)
+        if daily and daily.get("start_time"):
+            daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+            self.worktime_repo.upsert(work_date, required_hours=daily_required)
+        # 重置计算器缓存（配置变了）
+        self._calculator = None
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        """读取单个设置值（供 UI 层使用）。"""
+        return self.settings_repo.get(key, default)
+
+    def get_required_hours(self) -> float:
+        """获取每日工时要求。"""
+        return float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
 
     # ─── 数据查询（供日历等使用） ──────────────────────────
 
     def get_date_range_worktime(self, start: date, end: date) -> list:
-        """
-        获取日期范围内的工时记录。
-
-        Args:
-            start: 起始日期
-            end:   结束日期
-
-        Returns:
-            dict 列表
-        """
-        return database.get_date_range_worktime(start, end)
+        """获取日期范围内的工时记录。"""
+        return self.worktime_repo.get_range(start, end)
 
     def get_all_holidays(self) -> list:
-        """
-        获取全部节假日缓存。
-
-        Returns:
-            dict 列表
-        """
-        return database.get_all_holidays()
+        """获取全部节假日缓存。"""
+        return self.holiday_repo.get_all()
 
     def get_daily_worktime(self, work_dt: date) -> Optional[dict]:
-        """
-        获取指定日期的工时记录。
+        """获取指定日期的工时记录。"""
+        return self.worktime_repo.get(work_dt)
 
-        Args:
-            work_dt: 工作日日期
+    def get_exporter(self) -> WorktimeExporter:
+        """获取导出器实例。"""
+        return WorktimeExporter(self.worktime_repo)
 
-        Returns:
-            dict 或 None
-        """
-        return database.get_daily_worktime(work_dt)
+    # ─── 内部工具 ──────────────────────────────────────────
+
+    def _get_calculator(self) -> WorktimeCalculator:
+        """懒加载计算器，从 DB 读取配置后构建。"""
+        if self._calculator is None:
+            holidays = self.holiday_repo.get_all()
+            daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+            holiday_auto = self.settings_repo.get(SETTING_HOLIDAY_AUTO_EXCLUDE, "1") == "1"
+            weekly_work_days = int(self.settings_repo.get(SETTING_WEEKLY_WORK_DAYS, "5"))
+            self._calculator = WorktimeCalculator(
+                holidays=holidays,
+                daily_required=daily_required,
+                holiday_auto_exclude=holiday_auto,
+                weekly_work_days=weekly_work_days,
+            )
+        return self._calculator

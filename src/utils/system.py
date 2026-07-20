@@ -125,8 +125,8 @@ def get_first_active_from_pmset(work_date, work_start_floor: str = "06:00") -> O
         if m:
             ts = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
             # 验证归属工作日是否匹配
-            from src.data import database as db
-            work_dt = db.compute_work_date(ts)
+            from src.core.date_utils import compute_work_date
+            work_dt = compute_work_date(ts)
             if work_dt != work_date:
                 continue
             # 过滤早于上班检测起始时间的事件
