@@ -27,6 +27,10 @@ build/
 dist/
 *.spec.bak
 
+# 图标临时生成目录
+build_icon.iconset/
+图标.JPG
+
 # 工具/编辑器
 .codeflicker/
 .idea/

@@ -81,6 +81,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _init_ui(self):
         """构建主界面所有可见元素。"""
+        self.setWindowIcon(QtGui.QIcon('resources/app.icns'))
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         layout = QtWidgets.QVBoxLayout(central)
@@ -212,10 +213,9 @@ class MainWindow(QtWidgets.QMainWindow):
         """初始化菜单栏托盘图标及其右键菜单。"""
         self.tray = QtWidgets.QSystemTrayIcon()
         self.tray.setToolTip("工时计算器")
-        self.tray.setIcon(QtGui.QIcon(QtGui.QPixmap(16, 16)))
-        icon = self.style().standardIcon(QtWidgets.QStyle.SP_ComputerIcon)
+        icon = QtGui.QIcon('resources/app.icns')
         if icon.isNull():
-            icon = self.style().standardIcon(QtWidgets.QStyle.SP_MediaPlay)
+            icon = self.style().standardIcon(QtWidgets.QStyle.SP_ComputerIcon)
         self.tray.setIcon(icon)
         self.tray.setVisible(True)
 

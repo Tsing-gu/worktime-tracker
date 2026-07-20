@@ -45,6 +45,6 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='工时计算器.app',
-    icon=None,
+    icon='resources/app.icns',
     bundle_identifier=None,
 )
