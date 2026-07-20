@@ -33,6 +33,7 @@ from src.services.worktime_service import WorktimeService
 from src.services import notification_service
 from src.services.update_service import UpdateService
 from src.utils.paths import resource_path
+from src.core.date_utils import compute_work_date
 from src.ui.theme import get_theme, build_qss
 from src.ui.settings_dialog import SettingsDialog
 from src.ui.calendar_dialog import CalendarHistoryDialog
@@ -90,7 +91,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.setContentsMargins(28, 28, 28, 24)
 
         # ── 日期标题 ──
-        today = date.today()
+        today = compute_work_date(datetime.now())
         weekday_name = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][today.weekday()]
         self.date_label = QtWidgets.QLabel(f"{today.year}年{today.month}月{today.day}日 {weekday_name}")
         self.date_label.setObjectName("DateLabel")
@@ -671,7 +672,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_edit_start(self):
         """修改今日上班时间：弹出输入框，通过 service.edit_start_time() 更新。"""
-        today = date.today()
         status = self.service.get_today_status()
         current_start = status.start_time
         current_str = current_start.strftime("%H:%M") if current_start else ""
@@ -733,7 +733,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_leave(self):
         """打开请假弹窗，确认后通过 service 标记请假。"""
-        today = date.today()
+        today = compute_work_date(datetime.now())
         dialog = LeaveDialog(self, default_date=today)
         if dialog.exec() == QtWidgets.QDialog.Accepted:
             leave_date = dialog.get_date()
@@ -743,7 +743,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_export(self):
         """导出本月数据：弹窗选择 Excel 或 CSV 格式。"""
-        today = date.today()
+        today = compute_work_date(datetime.now())
         if today.month == 12:
             start = date(today.year, 12, 1)
             end = date(today.year, 12, 31)

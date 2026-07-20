@@ -1,6 +1,7 @@
-## [0.8.1] - 2026-07-20
+## [0.8.1] - 2026-07-21
 
 - **修复**: 重构引入的工作日判定回归 bug：`is_workday`/`is_rest_day`/`get_period_range`/`get_previous_workday` 调用时误传 `holiday_auto_exclude`(bool) 作为 `weekly_work_days`(int) 参数，导致只有周一判定为工作日，总工作天数严重偏少
+- **修复**: 所有查询当日日期的请求统一使用 `compute_work_date(now)`（6:00 跨天归属），不再用 `date.today()`，修复凌晨时段上一个工作日判定错误（如凌晨1点应归属前一天，上一个工作日应为上周五而非当天）
 
 ## [0.8.0] - 2026-07-20
 
