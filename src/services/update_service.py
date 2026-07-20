@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Callable
 from urllib.request import urlopen, Request
+from urllib.parse import quote, urlsplit, urlunsplit
 from xml.etree import ElementTree
 
 from src.config import (
@@ -137,6 +138,13 @@ class UpdateService:
         lines = [ln for ln in lines if ln]
         return "\n".join(lines)
 
+    @staticmethod
+    def _encode_url(url: str) -> str:
+        """对 URL 中的非 ASCII 字符（如中文文件名）进行百分号编码。"""
+        parts = urlsplit(url)
+        path = quote(parts.path, safe="/")
+        return urlunsplit((parts.scheme, parts.netloc, path, parts.query, parts.fragment))
+
     def _is_newer(self, remote_version: str) -> bool:
         """对比版本号，remote > local 返回 True。"""
         try:
@@ -169,7 +177,8 @@ class UpdateService:
             下载后的 DMG 本地路径，或 None（失败）
         """
         try:
-            req = Request(dmg_url, headers={"User-Agent": "worktime-tracker"})
+            url = self._encode_url(dmg_url)
+            req = Request(url, headers={"User-Agent": "worktime-tracker"})
             with urlopen(req, timeout=60) as resp:
                 total = int(resp.headers.get("Content-Length", 0))
                 dmg_path = os.path.join(self._temp_dir, "worktime_update.dmg")
