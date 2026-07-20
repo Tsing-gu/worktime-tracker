@@ -264,13 +264,6 @@ def build_qss(t: dict) -> str:
         font-size: 14px;
         spacing: 8px;
     }}
-    QCheckBox::indicator {{
-        width: 18px;
-        height: 18px;
-        border-radius: 4px;
-        border: 1px solid {t['stroke']};
-        background: {t['input_bg']};
-    }}
     QComboBox {{
         background-color: {t['input_bg']};
         color: {t['main']};
