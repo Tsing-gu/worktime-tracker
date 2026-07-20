@@ -26,7 +26,6 @@ class UpdateConfirmDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self.setWindowTitle("发现新版本")
         self.setMinimumWidth(380)
-        self._auto_checked = True
 
         t = get_theme()
         self.setStyleSheet(f"""
@@ -53,10 +52,6 @@ class UpdateConfirmDialog(QtWidgets.QDialog):
             desc.setStyleSheet(f"font-size: 13px; color: {t['main']};")
             layout.addWidget(desc)
 
-        self._auto_check = QtWidgets.QCheckBox("以后自动下载并安装更新")
-        self._auto_check.setChecked(True)
-        layout.addWidget(self._auto_check)
-
         btn_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Yes | QtWidgets.QDialogButtonBox.No
         )
@@ -65,9 +60,6 @@ class UpdateConfirmDialog(QtWidgets.QDialog):
         btn_box.accepted.connect(self.accept)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
-
-    def is_auto_update_checked(self) -> bool:
-        return self._auto_check.isChecked()
 
 
 class UpdateProgressDialog(QtWidgets.QDialog):

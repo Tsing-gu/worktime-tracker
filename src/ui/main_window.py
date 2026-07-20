@@ -27,7 +27,6 @@ from src.config import (
     SETTING_DAILY_REQUIRED_HOURS,
     SETTING_NOTIFY_ON_TARGET,
     SETTING_NOTIFY_ON_OFF,
-    UPDATE_CHECK_INTERVAL,
 )
 from src.services.worktime_service import WorktimeService
 from src.services import notification_service, export_service
@@ -71,7 +70,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.checked_yesterday = False
         self._tray_popup_menu = None  # 当前时长卡菜单
         self._update_checking = False  # 防止重复检查
-        self._update_pending = None  # 待处理的 UpdateInfo（自动模式下载用）
 
         self._init_ui()
         self._init_tray()
@@ -296,11 +294,9 @@ class MainWindow(QtWidgets.QMainWindow):
     # ─── 启动逻辑 ──────────────────────────────────────────
 
     def _on_startup(self):
-        """程序启动时调用：初始化 service 并刷新 UI，延迟检查更新。"""
+        """程序启动时调用：初始化 service 并刷新 UI。"""
         self.service.init()
         self.refresh_ui()
-        # 启动 5 秒后检查更新（避免阻塞 UI 初始化）
-        QtCore.QTimer.singleShot(5000, self._auto_check_update)
 
     # ─── 窗口控制 ──────────────────────────────────────────
 
@@ -512,10 +508,6 @@ class MainWindow(QtWidgets.QMainWindow):
         if not self.checked_yesterday:
             self._check_yesterday_confirm()
 
-        # ── 定时检查更新 ──
-        if self.update_service.should_check_now(UPDATE_CHECK_INTERVAL):
-            self._auto_check_update()
-
         # ── 刷新 UI ──
         self.refresh_ui()
 
@@ -537,24 +529,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.service.resume_after_off()
             self.refresh_ui()
 
-    # ─── 自动更新 ──────────────────────────────────────────
-
-    def _auto_check_update(self):
-        """后台自动检查更新（防重入）。"""
-        if self._update_checking:
-            return
-        self._update_checking = True
-        try:
-            info = self.update_service.check_for_updates()
-            self.update_service.mark_checked()
-            if not info:
-                return
-            if self.update_service.is_auto_update_enabled():
-                self._download_and_install(info, silent=True)
-            else:
-                self._show_update_confirm(info)
-        finally:
-            self._update_checking = False
+    # ─── 手动检查更新 ──────────────────────────────────────
 
     def on_check_update(self):
         """托盘菜单「检查更新」手动触发。"""
@@ -578,12 +553,10 @@ class MainWindow(QtWidgets.QMainWindow):
         """弹出更新确认窗。"""
         dlg = UpdateConfirmDialog(info, self)
         if dlg.exec() == QtWidgets.QDialog.Accepted:
-            auto = dlg.is_auto_update_checked()
-            self.update_service.set_auto_update(auto)
-            self._download_and_install(info, silent=False)
+            self._download_and_install(info)
 
-    def _download_and_install(self, info, silent: bool):
-        """下载并安装更新。silent=True 时不显示确认窗，仅显示进度。"""
+    def _download_and_install(self, info):
+        """下载并安装更新。"""
         progress = UpdateProgressDialog(self)
         progress.show()
         self.update_service.reset_cancel()

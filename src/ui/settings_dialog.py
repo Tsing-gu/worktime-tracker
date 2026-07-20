@@ -28,7 +28,6 @@ from src.config import (
     SETTING_NOTIFY_ON_OFF,
     SETTING_AUTO_START,
     SETTING_HOLIDAY_AUTO_EXCLUDE,
-    SETTING_AUTO_UPDATE,
 )
 
 
@@ -108,11 +107,6 @@ class SettingsDialog(QtWidgets.QDialog):
         self.holiday_auto.setChecked(database.get_setting(SETTING_HOLIDAY_AUTO_EXCLUDE, "1") == "1")
         layout.addRow(self.holiday_auto)
 
-        # ── 自动更新 ──
-        self.auto_update = QtWidgets.QCheckBox("自动下载并安装更新")
-        self.auto_update.setChecked(database.get_setting(SETTING_AUTO_UPDATE, "0") == "1")
-        layout.addRow(self.auto_update)
-
         # ── 检查更新按钮 ──
         self.check_update_btn = QtWidgets.QPushButton("立即检查更新")
         self.check_update_btn.clicked.connect(self._on_check_update)
@@ -149,7 +143,6 @@ class SettingsDialog(QtWidgets.QDialog):
             SETTING_NOTIFY_ON_OFF: "1" if self.notify_off.isChecked() else "0",
             SETTING_AUTO_START: "1" if self.auto_start.isChecked() else "0",
             SETTING_HOLIDAY_AUTO_EXCLUDE: "1" if self.holiday_auto.isChecked() else "0",
-            SETTING_AUTO_UPDATE: "1" if self.auto_update.isChecked() else "0",
         }
 
     def _on_check_update(self):
