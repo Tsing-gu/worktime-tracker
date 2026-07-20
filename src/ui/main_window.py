@@ -586,12 +586,19 @@ class MainWindow(QtWidgets.QMainWindow):
         """下载并安装更新。silent=True 时不显示确认窗，仅显示进度。"""
         progress = UpdateProgressDialog(self)
         progress.show()
+        self.update_service.reset_cancel()
 
         def on_progress(downloaded, total):
             progress.update_progress(downloaded, total)
 
         def worker():
             dmg_path = self.update_service.download_update(info.dmg_url, on_progress)
+            # 检查是否被用户取消
+            if progress.is_cancelled():
+                QtCore.QMetaObject.invokeMethod(progress, "set_status",
+                                                QtCore.Qt.QueuedConnection,
+                                                QtCore.Q_ARG(str, "已取消下载"))
+                return
             if not dmg_path or not self.update_service.verify_update(dmg_path, info.length):
                 QtCore.QMetaObject.invokeMethod(progress, "set_status",
                                                 QtCore.Qt.QueuedConnection,

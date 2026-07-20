@@ -59,6 +59,15 @@ class UpdateService:
 
     def __init__(self):
         self._temp_dir = tempfile.gettempdir()
+        self._cancelled = False
+
+    def cancel_download(self):
+        """取消正在进行的下载。"""
+        self._cancelled = True
+
+    def reset_cancel(self):
+        """重置取消标志。"""
+        self._cancelled = False
 
     # ─── 版本检查 ──────────────────────────────────────────
 
@@ -183,9 +192,13 @@ class UpdateService:
                 total = int(resp.headers.get("Content-Length", 0))
                 dmg_path = os.path.join(self._temp_dir, "worktime_update.dmg")
                 downloaded = 0
-                chunk = 64 * 1024
+                chunk = 512 * 1024
                 with open(dmg_path, "wb") as f:
                     while True:
+                        if self._cancelled:
+                            f.close()
+                            os.remove(dmg_path)
+                            return None
                         buf = resp.read(chunk)
                         if not buf:
                             break
