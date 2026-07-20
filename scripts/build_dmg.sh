@@ -11,7 +11,7 @@ set -e
 PROJECT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 APP_NAME="工时计算器"
 APP_PATH="$PROJECT_DIR/dist/$APP_NAME.app"
-DMG_PATH="$PROJECT_DIR/dist/$APP_NAME.dmg"
+DMG_PATH="$PROJECT_DIR/dist/WorkTimeTracker.dmg"
 STAGING_DIR="$PROJECT_DIR/dist/dmg_staging"
 
 cd "$PROJECT_DIR"
@@ -29,8 +29,6 @@ ln -s /Applications "$STAGING_DIR/Applications"
 echo "=== 3/4 生成 DMG ==="
 rm -f "$DMG_PATH"
 hdiutil create -volname "$APP_NAME" -srcfolder "$STAGING_DIR" -ov -format UDZO "$DMG_PATH"
-
-echo "=== 4/4 清理 ==="
 rm -rf "$STAGING_DIR"
 
 echo ""
