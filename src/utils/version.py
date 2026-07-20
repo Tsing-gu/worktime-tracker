@@ -112,13 +112,11 @@ def record_change(change_type: str, description: str) -> str:
         2. 更新 VERSION 文件
         3. 在 CHANGELOG.md 顶部追加变更条目
 
-    Args:
-        change_type:   变更类型 "added" | "changed" | "fixed" | "removed"
-        description:   变更描述文本
-
-    Returns:
-        更新后的新版本号
+    注意：此函数仅用于开发环境，打包后调用会抛异常。
     """
+    if getattr(sys, "frozen", False):
+        raise RuntimeError("record_change 不可在打包环境调用")
+
     if change_type not in _BUMP_MAP:
         raise ValueError(f"无效的变更类型: {change_type}，应为 {list(_BUMP_MAP.keys())}")
 

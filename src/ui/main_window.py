@@ -17,6 +17,7 @@ main_window - 主窗口
 """
 
 import sys
+import os
 from datetime import datetime, date, timedelta
 
 from PySide6 import QtWidgets, QtCore, QtGui
@@ -81,7 +82,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _init_ui(self):
         """构建主界面所有可见元素。"""
-        self.setWindowIcon(QtGui.QIcon('resources/app.icns'))
+        self.setWindowIcon(QtGui.QIcon(self._resource_path('resources/app.icns')))
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         layout = QtWidgets.QVBoxLayout(central)
@@ -213,7 +214,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """初始化菜单栏托盘图标及其右键菜单。"""
         self.tray = QtWidgets.QSystemTrayIcon()
         self.tray.setToolTip("工时计算器")
-        icon = QtGui.QIcon('resources/app.icns')
+        icon = QtGui.QIcon(self._resource_path('resources/app.icns'))
         if icon.isNull():
             icon = self.style().standardIcon(QtWidgets.QStyle.SP_ComputerIcon)
         self.tray.setIcon(icon)
@@ -302,6 +303,18 @@ class MainWindow(QtWidgets.QMainWindow):
         QtCore.QTimer.singleShot(5000, self._auto_check_update)
 
     # ─── 窗口控制 ──────────────────────────────────────────
+
+    @staticmethod
+    def _resource_path(relative_path: str) -> str:
+        """获取资源文件的绝对路径，兼容开发环境和 PyInstaller 打包环境。"""
+        if getattr(sys, "frozen", False):
+            base = os.path.join(os.path.dirname(sys._MEIPASS), "Resources")
+            if not os.path.exists(os.path.join(base, relative_path)):
+                base = sys._MEIPASS
+            return os.path.join(base, relative_path)
+        else:
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            return os.path.join(project_root, relative_path)
 
     def show_normal(self):
         """显示并激活主窗口（从隐藏/最小化状态恢复）。"""
