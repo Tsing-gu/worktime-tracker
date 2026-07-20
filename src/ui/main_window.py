@@ -321,13 +321,20 @@ class MainWindow(QtWidgets.QMainWindow):
         self.raise_()
         self.activateWindow()
 
-    @staticmethod
-    def _style_progress_bar(bar: QtWidgets.QProgressBar, reached: bool):
-        """进度条达到 100% 时变绿，否则恢复主题色。"""
+    def _style_progress_bar(self, bar: QtWidgets.QProgressBar, worked: float, required: float):
+        """统一设置进度条：按 worked/required 百分比填充，>=100% 变绿，钳制到满格。
+
+        内联样式同时设置 track 底色与 chunk 颜色，避免遮蔽全局 QProgressBar 样式导致底色透明。
+        """
         t = get_theme()
+        reached = required > 0 and worked >= required
+        pct = int(worked / required * 100) if required > 0 else 0
         color = t['green'] if reached else t['primary']
         radius = "3px" if bar.objectName() == "CardBar" else "4px"
+        bar.setMaximum(100)
+        bar.setValue(min(100, pct))
         bar.setStyleSheet(
+            f"QProgressBar {{ background-color: {t['track']}; border: none; border-radius: {radius}; }}"
             f"QProgressBar::chunk {{ background-color: {color}; border-radius: {radius}; }}"
         )
 
@@ -424,9 +431,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         bar = QtWidgets.QProgressBar()
         bar.setTextVisible(False)
-        bar.setMaximum(int(required * 10))
-        bar.setValue(int(worked * 10))
-        self._style_progress_bar(bar, worked >= required)
+        self._style_progress_bar(bar, worked, required)
         layout.addWidget(bar)
 
         pct = int(worked / required * 100) if required > 0 else 0
@@ -631,10 +636,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # ── 今日进度 ──
         required = status.required_hours
-        max_val = int(required * 10)
-        self.progress_bar.setMaximum(max_val)
-        self.progress_bar.setValue(int(status.worked_hours * 10))
-        self._style_progress_bar(self.progress_bar, status.worked_hours >= required)
+        self._style_progress_bar(self.progress_bar, status.worked_hours, required)
         pct = int(status.worked_hours / required * 100) if required > 0 else 0
         self.progress_label.setText(f"今日目标 {required:.1f}h  {pct}%")
 
@@ -651,6 +653,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._card_labels["本期概览_line3"].setText("")
             self._card_labels["本期概览_line4"].hide()
             bar = self._card_labels["本期概览_bar"]
+            bar.setStyleSheet("")
             bar.setMaximum(100)
             bar.setValue(0)
         else:
@@ -663,9 +666,7 @@ class MainWindow(QtWidgets.QMainWindow):
                 self._card_labels["本期概览_line3"].setText(f"今天干完就放假啦！还剩{left:.1f}h")
             self._card_labels["本期概览_line4"].hide()
             bar = self._card_labels["本期概览_bar"]
-            bar.setMaximum(int(period.target_hours * 10) if period.target_hours > 0 else 100)
-            bar.setValue(int(period.worked_hours * 10))
-            self._style_progress_bar(bar, period.worked_hours >= period.target_hours if period.target_hours > 0 else False)
+            self._style_progress_bar(bar, period.worked_hours, period.target_hours)
 
         # ── 本月卡片 ──
         month = self.service.get_month_stats()
@@ -678,9 +679,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._card_labels["本月概览_line3"].setText(f"今天干完就放假啦！还剩{left:.1f}h")
         self._card_labels["本月概览_line4"].hide()
         bar2 = self._card_labels["本月概览_bar"]
-        bar2.setMaximum(int(month.target_hours * 10) if month.target_hours > 0 else 100)
-        bar2.setValue(int(month.worked_hours * 10))
-        self._style_progress_bar(bar2, month.worked_hours >= month.target_hours if month.target_hours > 0 else False)
+        self._style_progress_bar(bar2, month.worked_hours, month.target_hours)
 
     # ─── 事件处理 ──────────────────────────────────────────
 
