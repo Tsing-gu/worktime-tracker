@@ -118,6 +118,12 @@ class SettingsDialog(QtWidgets.QDialog):
         self.check_update_btn.clicked.connect(self._on_check_update)
         layout.addRow(self.check_update_btn)
 
+        # ── 版本号 ──
+        from src.utils.version import get_version
+        version_label = QtWidgets.QLabel(f"工时计算器 v{get_version()}")
+        version_label.setStyleSheet("color: #86868B; font-size: 12px;")
+        layout.addRow(version_label)
+
         # ── 确认/取消按钮 ──
         btn_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
