@@ -1,3 +1,7 @@
+## [0.8.1] - 2026-07-20
+
+- **修复**: 重构引入的工作日判定回归 bug：`is_workday`/`is_rest_day`/`get_period_range`/`get_previous_workday` 调用时误传 `holiday_auto_exclude`(bool) 作为 `weekly_work_days`(int) 参数，导致只有周一判定为工作日，总工作天数严重偏少
+
 ## [0.8.0] - 2026-07-20
 
 - **重构**: 全面 OOP 重构，所有散装模块级函数改为类封装

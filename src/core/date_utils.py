@@ -92,37 +92,38 @@ def is_workday(dt: date, holidays: list, weekly_work_days: int = 5) -> bool:
     return dt.weekday() < weekly_work_days
 
 
-def is_rest_day(dt: date, holidays: list) -> bool:
+def is_rest_day(dt: date, holidays: list, weekly_work_days: int = 5) -> bool:
     """判断指定日期是否为休息日（非工作日）。"""
-    return not is_workday(dt, holidays)
+    return not is_workday(dt, holidays, weekly_work_days)
 
 
-def get_period_range(today: date, holidays: list) -> Optional[Tuple[date, date]]:
+def get_period_range(today: date, holidays: list, weekly_work_days: int = 5) -> Optional[Tuple[date, date]]:
     """获取本期范围（两个连续非工作日段之间的工作日区间）。
 
     从 today 向前和向后搜索，找到第一个非工作日作为边界。
 
     Args:
-        today:    今日日期
-        holidays: 节假日列表
+        today:            今日日期
+        holidays:         节假日列表
+        weekly_work_days: 每周工作天数（默认 5）
 
     Returns:
         (start, end) 元组，或 None（今天是非工作日）
     """
-    if is_rest_day(today, holidays):
+    if is_rest_day(today, holidays, weekly_work_days):
         return None
 
     start = today
     while start > today - timedelta(days=365):
         prev = start - timedelta(days=1)
-        if is_rest_day(prev, holidays):
+        if is_rest_day(prev, holidays, weekly_work_days):
             break
         start = prev
 
     end = today
     while end < today + timedelta(days=365):
         nxt = end + timedelta(days=1)
-        if is_rest_day(nxt, holidays):
+        if is_rest_day(nxt, holidays, weekly_work_days):
             break
         end = nxt
 
@@ -130,21 +131,21 @@ def get_period_range(today: date, holidays: list) -> Optional[Tuple[date, date]]
 
 
 def get_previous_workday(
-    today: date, holidays: list, holiday_auto_exclude: bool = True
+    today: date, holidays: list, weekly_work_days: int = 5
 ) -> Optional[date]:
     """获取前一个工作日。
 
     Args:
-        today:               今日日期
-        holidays:            节假日列表
-        holiday_auto_exclude: 是否自动排除假日
+        today:            今日日期
+        holidays:         节假日列表
+        weekly_work_days: 每周工作天数（默认 5）
 
     Returns:
         前一个工作日 date，或 None
     """
     dt = today - timedelta(days=1)
     for _ in range(30):
-        if is_workday(dt, holidays):
+        if is_workday(dt, holidays, weekly_work_days):
             return dt
         dt -= timedelta(days=1)
     return None
