@@ -5,26 +5,37 @@
     <description>macOS 工时追踪桌面应用</description>
     <language>zh-CN</language>
     <!--
-      发版时新增一条 <item>（旧的置顶）：
+      发版时新增一条 <item>（新的置顶，旧的留下）：
       1. sparkle:version 为内部版本号（整数，递增）
       2. sparkle:shortVersionString 为显示版本号
       3. enclosure url 指向 GitHub Release 的 DMG 下载链接
       4. length 为 DMG 文件字节数（stat -f%z 工时计算器.dmg）
     -->
     <item>
+      <title>版本 0.6.1</title>
+      <pubDate>Sun, 20 Jul 2026 19:40:00 +0800</pubDate>
+      <sparkle:version>2</sparkle:version>
+      <sparkle:shortVersionString>0.6.1</sparkle:shortVersionString>
+      <description><![CDATA[
+        首个带自动更新功能的版本。
+        <ul>
+          <li>纯 Python 自动更新（方案 B）</li>
+          <li>设置中加检查更新按钮 + 版本号显示</li>
+          <li>应用图标设置</li>
+          <li>DMG 拖拽安装布局</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/Tsing-gu/worktime-tracker/releases/download/v0.6.1/工时计算器.dmg"
+        length="91833317"
+        sparkle:edSignature=""/>
+    </item>
+    <item>
       <title>版本 0.5.3</title>
       <pubDate>Mon, 20 Jul 2026 18:00:00 +0800</pubDate>
       <sparkle:version>1</sparkle:version>
       <sparkle:shortVersionString>0.5.3</sparkle:shortVersionString>
-      <description><![CDATA[
-        首个带自动更新功能的版本。
-      ]]></description>
-      <!--
-      <enclosure
-        url="https://github.com/Tsing-gu/worktime-tracker/releases/download/v0.5.3/工时计算器.dmg"
-        length="0"
-        sparkle:edSignature=""/>
-      -->
+      <description><![CDATA[模板版本，无实际下载]]></description>
     </item>
   </channel>
 </rss>
