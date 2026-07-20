@@ -592,6 +592,10 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtCore.QMetaObject.invokeMethod(progress, "set_status",
                                                 QtCore.Qt.QueuedConnection,
                                                 QtCore.Q_ARG(str, "无法自动安装（开发环境）"))
+                return
+            # 安装脚本已启动，退出主进程让脚本替换 .app 并重启
+            QtCore.QMetaObject.invokeMethod(QtWidgets.QApplication.instance(), "quit",
+                                            QtCore.Qt.QueuedConnection)
 
         import threading
         t = threading.Thread(target=worker, daemon=True)

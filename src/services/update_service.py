@@ -229,9 +229,17 @@ class UpdateService:
 
         with open(updater_script, "w") as f:
             f.write(f"""#!/bin/bash
-sleep 1
+# 等待主进程完全退出
+sleep 2
+# 挂载 DMG
 hdiutil attach "{dmg_path}" -nobrowse -mountpoint "{mount_point}"
-rm -rf "{app_path}"
+# 等待挂载完成
+sleep 1
+# 替换 .app（重试 3 次）
+for i in 1 2 3; do
+  rm -rf "{app_path}" && break
+  sleep 1
+done
 cp -R "{mount_point}/{app_name}" "{app_path}"
 hdiutil detach "{mount_point}" -force
 rm -f "{dmg_path}"
@@ -240,7 +248,9 @@ rm -f "{updater_script}"
 """)
         os.chmod(updater_script, 0o755)
 
-        subprocess.Popen(["bash", updater_script])
+        subprocess.Popen(["bash", updater_script],
+                         stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL)
         return True
 
     def _get_app_path(self) -> Optional[str]:
