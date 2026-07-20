@@ -30,6 +30,8 @@ SETTING_NOTIFY_ON_TARGET = "notify_on_target"
 SETTING_NOTIFY_ON_OFF = "notify_on_off"
 SETTING_AUTO_START = "auto_start"
 SETTING_HOLIDAY_AUTO_EXCLUDE = "holiday_auto_exclude"
+SETTING_AUTO_UPDATE = "auto_update"
+SETTING_LAST_UPDATE_CHECK = "last_update_check"
 
 # ─── 默认值 ──────────────────────────────────────────────────
 DEFAULT_SETTINGS = {
@@ -42,6 +44,8 @@ DEFAULT_SETTINGS = {
     SETTING_NOTIFY_ON_OFF: "1",
     SETTING_AUTO_START: "0",
     SETTING_HOLIDAY_AUTO_EXCLUDE: "1",
+    SETTING_AUTO_UPDATE: "0",
+    SETTING_LAST_UPDATE_CHECK: "",
 }
 
 # ─── 追踪参数 ────────────────────────────────────────────────
@@ -72,3 +76,8 @@ HOLIDAY_API_URLS = [
 
 # ─── 导出文件默认路径 ────────────────────────────────────────
 EXPORT_DIR = os.path.expanduser("~/Desktop")
+
+# ─── 自动更新 ────────────────────────────────────────────────
+UPDATE_CHECK_INTERVAL = 3600
+UPDATE_FEED_URL = "https://raw.githubusercontent.com/Tsing-gu/worktime-tracker/main/appcast.xml"
+UPDATE_FEED_FALLBACK_URL = "https://cdn.jsdelivr.net/gh/Tsing-gu/worktime-tracker@main/appcast.xml"

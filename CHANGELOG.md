@@ -1,3 +1,9 @@
+## [0.6.0] - 2026-07-20
+
+- **新增**: 纯 Python 自动更新（方案 B）：启动 + 每小时检查，首次用户确认后自动下载安装重启
+- **新增**: 托盘菜单「检查更新」手动触发
+- **新增**: appcast.xml 版本清单（GitHub Releases 托管 DMG，jsDelivr 备用）
+
 ## [0.5.2] - 2026-07-18
 
 - **修复**: 凌晨时段（0:00~6:00）主页面和菜单栏时长卡未正常显示上班时长和进度：get_today_status/get_period_stats/get_month_stats 误用 date.today()，改为 compute_work_date(datetime.now()) 与跨天 6:00 规则一致
