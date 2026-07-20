@@ -123,6 +123,7 @@ class UpdateProgressDialog(QtWidgets.QDialog):
             self._cancelled = True
         super().closeEvent(event)
 
+    @QtCore.Slot(int, int)
     def update_progress(self, downloaded: int, total: int):
         """更新进度条。"""
         if total > 0:
@@ -135,5 +136,6 @@ class UpdateProgressDialog(QtWidgets.QDialog):
             dl_mb = downloaded / 1024 / 1024
             self._detail_label.setText(f"{dl_mb:.1f} MB 已下载")
 
+    @QtCore.Slot(str)
     def set_status(self, text: str):
         self._status_label.setText(text)

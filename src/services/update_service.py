@@ -188,7 +188,7 @@ class UpdateService:
         try:
             url = self._encode_url(dmg_url)
             req = Request(url, headers={"User-Agent": "worktime-tracker"})
-            with urlopen(req, timeout=60) as resp:
+            with urlopen(req, timeout=300) as resp:
                 total = int(resp.headers.get("Content-Length", 0))
                 dmg_path = os.path.join(self._temp_dir, "worktime_update.dmg")
                 downloaded = 0
@@ -197,7 +197,10 @@ class UpdateService:
                     while True:
                         if self._cancelled:
                             f.close()
-                            os.remove(dmg_path)
+                            try:
+                                os.remove(dmg_path)
+                            except OSError:
+                                pass
                             return None
                         buf = resp.read(chunk)
                         if not buf:
