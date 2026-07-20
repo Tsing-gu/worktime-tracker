@@ -105,6 +105,32 @@ class UpdateProgressDialog(QtWidgets.QDialog):
         self._detail_label.setStyleSheet(f"font-size: 12px; color: {t['sec']};")
         layout.addWidget(self._detail_label)
 
+        self._cancel_btn = QtWidgets.QPushButton("取消下载")
+        self._cancel_btn.clicked.connect(self._on_cancel)
+        layout.addWidget(self._cancel_btn)
+
+        self._cancelled = False
+
+    def _on_cancel(self):
+        """用户点击取消下载。"""
+        self._cancelled = True
+        self._cancel_btn.setEnabled(False)
+        self._cancel_btn.setText("正在取消...")
+        self.set_status("正在取消下载...")
+
+    def is_cancelled(self) -> bool:
+        return self._cancelled
+
+    def set_downloading(self):
+        """下载开始后隐藏取消按钮的禁用状态。"""
+        self._cancel_btn.setEnabled(True)
+
+    def closeEvent(self, event):
+        """关闭对话框时标记为取消。"""
+        if not self._cancelled:
+            self._cancelled = True
+        super().closeEvent(event)
+
     def update_progress(self, downloaded: int, total: int):
         """更新进度条。"""
         if total > 0:
