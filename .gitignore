@@ -1,0 +1,47 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+*.egg
+
+# 虚拟环境
+.venv/
+venv/
+env/
+ENV/
+
+# 测试缓存
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 构建产物
+build/
+dist/
+*.spec.bak
+
+# 工具/编辑器
+.codeflicker/
+.idea/
+.vscode/
+*.swp
+*~
+
+# 数据库文件（本地运行时生成）
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+
+# 日志
+*.log
+
+# 用户本地配置（若有）
+config.local.py
