@@ -291,7 +291,7 @@ class WorktimeService:
 
     def check_yesterday(self) -> Optional[tuple]:
         """检查是否需要弹出次日确认提醒。"""
-        today = date.today()
+        today = compute_work_date(datetime.now())
         prev = self._get_calculator().previous_workday(today)
 
         if prev is None:
@@ -367,7 +367,7 @@ class WorktimeService:
 
     def edit_start_time(self, start_str: str) -> datetime:
         """修改今日上班时间。"""
-        today = date.today()
+        today = compute_work_date(datetime.now())
         try:
             sh, sm = map(int, start_str.strip().split(":"))
             floor_str = self.settings_repo.get(SETTING_WORK_START_FLOOR, "06:00")

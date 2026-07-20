@@ -20,6 +20,7 @@ from PySide6 import QtWidgets, QtCore, QtGui
 
 from src.config import SETTING_DAILY_REQUIRED_HOURS, LEAVE_TYPES
 from src.services.worktime_service import WorktimeService
+from src.core.date_utils import compute_work_date
 from src.ui.leave_dialog import LeaveDialog
 from src.ui.theme import get_theme
 
@@ -171,8 +172,9 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         layout.addWidget(info_label)
 
         # 当前显示的年/月
-        self._current_year = date.today().year
-        self._current_month = date.today().month
+        _today = compute_work_date(datetime.now())
+        self._current_year = _today.year
+        self._current_month = _today.month
         self._cells = []
 
         self.load_data()
@@ -199,8 +201,9 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
 
     def go_today(self):
         """跳回本月。"""
-        self._current_year = date.today().year
-        self._current_month = date.today().month
+        _today = compute_work_date(datetime.now())
+        self._current_year = _today.year
+        self._current_month = _today.month
         self.load_data()
 
     # ─── 数据加载 ──────────────────────────────────────────
@@ -292,8 +295,8 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
                 else:
                     cell.set_status("--", theme["card"], theme["sec"])
 
-            # 标记今天
-            if d == date.today():
+            # 标记今天（按 6:00 跨天归属）
+            if d == compute_work_date(datetime.now()):
                 cell.setStyleSheet(cell.styleSheet() + f"QFrame#DayCell {{ border: 2px solid {theme['primary']}; }}")
 
             self.grid_layout.addWidget(cell, row, col)
