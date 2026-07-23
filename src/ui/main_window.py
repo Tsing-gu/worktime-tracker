@@ -578,6 +578,8 @@ class MainWindow(QtWidgets.QMainWindow):
                 QtCore.QMetaObject.invokeMethod(progress, "set_status",
                                                 QtCore.Qt.QueuedConnection,
                                                 QtCore.Q_ARG(str, "已取消下载"))
+                QtCore.QMetaObject.invokeMethod(progress, "close",
+                                                QtCore.Qt.QueuedConnection)
                 return
             if not dmg_path or not self.update_service.verify_update(dmg_path, info.length):
                 QtCore.QMetaObject.invokeMethod(progress, "set_status",

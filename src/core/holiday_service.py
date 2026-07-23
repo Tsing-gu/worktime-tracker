@@ -56,8 +56,13 @@ class HolidayService:
         for url_template in self._api_urls:
             url = url_template.format(year=year)
             try:
+                import ssl
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+
                 req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-                resp = urllib.request.urlopen(req, timeout=10)
+                resp = urllib.request.urlopen(req, timeout=10, context=ctx)
                 data = json.loads(resp.read())
                 days = data.get("days", [])
                 self._repo.save_year(year, days)

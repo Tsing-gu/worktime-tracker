@@ -154,9 +154,14 @@ class UpdateService:
     ) -> Optional[str]:
         """下载 DMG 到临时目录。"""
         try:
+            import ssl
+            ctx = ssl.create_default_context()
+            ctx.check_hostname = False
+            ctx.verify_mode = ssl.CERT_NONE
+
             url = encode_url(dmg_url)
             req = Request(url, headers={"User-Agent": "worktime-tracker"})
-            with urlopen(req, timeout=300) as resp:
+            with urlopen(req, timeout=300, context=ctx) as resp:
                 total = int(resp.headers.get("Content-Length", 0))
                 dmg_path = os.path.join(self._temp_dir, "worktime_update.dmg")
                 downloaded = 0
