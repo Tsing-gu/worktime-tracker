@@ -45,6 +45,14 @@ def main():
     # 启用高 DPI 图标
     QtCore.QCoreApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
 
+    # 加载 Qt 内置中文翻译，使标准按钮(OK/Cancel/Yes/No等)显示中文
+    _translators = []
+    for qm in ("qtbase", "qt"):
+        tr = QtCore.QTranslator()
+        if tr.load(QtCore.QLocale("zh_CN"), qm, "_", QtCore.QLibraryInfo.path(QtCore.QLibraryInfo.TranslationsPath)):
+            app.installTranslator(tr)
+            _translators.append(tr)
+
     # 应用主题样式
     theme = get_theme()
     app.setStyleSheet(build_qss(theme))
