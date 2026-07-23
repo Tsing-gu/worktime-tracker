@@ -18,7 +18,7 @@ from src.core.date_utils import compute_work_date
 class ActivityRepository(Database):
     """活动事件表仓储，提供键鼠活动记录的增删查。"""
 
-    def record(self, timestamp: datetime, idle_seconds: float, is_active: bool):
+    def record(self, timestamp: datetime, idle_seconds: float, is_active: bool, at_office: bool = False):
         """记录一条键鼠活动事件。
 
         自动根据 6:00 窗口规则计算归属工作日。
@@ -27,17 +27,19 @@ class ActivityRepository(Database):
             timestamp:    轮询时刻
             idle_seconds: HIDIdleTime（秒）
             is_active:    是否有活动（idle < 5s）
+            at_office:    是否在公司内网
         """
         work_date = compute_work_date(timestamp)
         with self.transaction() as conn:
             conn.execute(
-                "INSERT INTO activity_events (timestamp, idle_seconds, is_active, work_date) "
-                "VALUES (?, ?, ?, ?)",
+                "INSERT INTO activity_events (timestamp, idle_seconds, is_active, work_date, at_office) "
+                "VALUES (?, ?, ?, ?, ?)",
                 (
                     timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                     idle_seconds,
                     1 if is_active else 0,
                     work_date.isoformat(),
+                    1 if at_office else 0,
                 ),
             )
 

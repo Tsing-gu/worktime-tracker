@@ -27,6 +27,7 @@ from src.config import (
     SETTING_NOTIFY_ON_OFF,
     SETTING_AUTO_START,
     SETTING_HOLIDAY_AUTO_EXCLUDE,
+    SETTING_OFFICE_NETWORK_DOMAIN,
 )
 
 
@@ -112,6 +113,17 @@ class SettingsDialog(QtWidgets.QDialog):
         self.check_update_btn.clicked.connect(self._on_check_update)
         layout.addRow(self.check_update_btn)
 
+        # ── 办公网络记录 ──
+        self._office_domain = settings.get(SETTING_OFFICE_NETWORK_DOMAIN, "")
+        office_layout = QtWidgets.QHBoxLayout()
+        self.office_domain_label = QtWidgets.QLabel(self._office_domain or "未设置")
+        self.office_domain_label.setStyleSheet("color: #86868B;")
+        self.record_office_btn = QtWidgets.QPushButton("记录当前网络为办公网络")
+        self.record_office_btn.clicked.connect(self._on_record_office)
+        office_layout.addWidget(self.office_domain_label)
+        office_layout.addWidget(self.record_office_btn)
+        layout.addRow("办公网络", office_layout)
+
         # ── 版本号 ──
         from src.utils.version import get_version
         version_label = QtWidgets.QLabel(f"工时计算器 v{get_version()}")
@@ -143,6 +155,7 @@ class SettingsDialog(QtWidgets.QDialog):
             SETTING_NOTIFY_ON_OFF: "1" if self.notify_off.isChecked() else "0",
             SETTING_AUTO_START: "1" if self.auto_start.isChecked() else "0",
             SETTING_HOLIDAY_AUTO_EXCLUDE: "1" if self.holiday_auto.isChecked() else "0",
+            SETTING_OFFICE_NETWORK_DOMAIN: self._office_domain,
         }
 
     def _on_check_update(self):
@@ -153,3 +166,19 @@ class SettingsDialog(QtWidgets.QDialog):
             parent.on_check_update()
         else:
             QtWidgets.QMessageBox.information(self, "检查更新", "请在主界面托盘菜单中检查更新")
+
+    def _on_record_office(self):
+        """检测当前网络的 DHCP domain_search，记录为办公网络域名。"""
+        from src.utils.system import get_network_status
+
+        status = get_network_status()
+        domain = status.get("domain", "")
+        if not domain:
+            QtWidgets.QMessageBox.warning(self, "记录失败", "未能检测到当前网络的搜索域，请确保已连接 WiFi。")
+            return
+        self.office_domain_label.setText(domain)
+        self.office_domain_label.setStyleSheet("color: #34C759;")
+        self._office_domain = domain
+        QtWidgets.QMessageBox.information(
+            self, "已记录", f"已将「{domain}」记录为办公网络域名。\n点击「确定」保存设置后生效。"
+        )
