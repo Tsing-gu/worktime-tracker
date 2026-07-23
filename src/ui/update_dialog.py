@@ -102,6 +102,7 @@ class UpdateProgressDialog(QtWidgets.QDialog):
         layout.addWidget(self._cancel_btn)
 
         self._cancelled = False
+        self._cancel_callback = None
 
     def _on_cancel(self):
         """用户点击取消下载。"""
@@ -109,18 +110,26 @@ class UpdateProgressDialog(QtWidgets.QDialog):
         self._cancel_btn.setEnabled(False)
         self._cancel_btn.setText("正在取消...")
         self.set_status("正在取消下载...")
+        if self._cancel_callback:
+            self._cancel_callback()
 
     def is_cancelled(self) -> bool:
         return self._cancelled
+
+    def set_cancel_callback(self, callback):
+        """设置取消下载时的回调（用于通知 service 停止下载）。"""
+        self._cancel_callback = callback
 
     def set_downloading(self):
         """下载开始后隐藏取消按钮的禁用状态。"""
         self._cancel_btn.setEnabled(True)
 
     def closeEvent(self, event):
-        """关闭对话框时标记为取消。"""
+        """关闭对话框时标记为取消并通知 service。"""
         if not self._cancelled:
             self._cancelled = True
+            if self._cancel_callback:
+                self._cancel_callback()
         super().closeEvent(event)
 
     @QtCore.Slot(int, int)

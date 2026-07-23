@@ -114,3 +114,25 @@ class ActivityRepository(Database):
         if row:
             return datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S")
         return None
+
+    def get_last_active_at_office(self, work_dt: date) -> Optional[datetime]:
+        """获取指定工作日最后一条 active + at_office 的记录时间。
+
+        Args:
+            work_dt: 工作日日期
+
+        Returns:
+            最后的在公司活动时间，或 None
+        """
+        conn = self._get_conn()
+        c = conn.cursor()
+        c.execute(
+            "SELECT timestamp FROM activity_events "
+            "WHERE work_date = ? AND is_active = 1 AND at_office = 1 "
+            "ORDER BY timestamp DESC LIMIT 1",
+            (work_dt.isoformat(),),
+        )
+        row = c.fetchone()
+        if row:
+            return datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S")
+        return None
