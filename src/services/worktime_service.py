@@ -48,7 +48,7 @@ from src.core.calculator import WorktimeCalculator
 from src.core.holiday_service import HolidayService
 from src.core.date_utils import compute_work_date
 from src.services.export_service import WorktimeExporter
-from src.utils.system import get_first_active_from_pmset
+from src.utils.system import get_first_active_from_pmset, get_network_status
 
 
 class WorktimeService:
