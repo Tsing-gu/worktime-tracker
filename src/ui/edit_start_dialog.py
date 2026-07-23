@@ -32,11 +32,14 @@ class EditStartDialog(QtWidgets.QDialog):
 
         self.input_edit = QtWidgets.QLineEdit(current_start_str)
         self.input_edit.setPlaceholderText("09:30")
+        self.input_edit.setFocusPolicy(QtCore.Qt.ClickFocus)
         layout.addWidget(self.input_edit)
 
         pmset_btn = QtWidgets.QPushButton("从 pmset 读取")
         pmset_btn.clicked.connect(self._on_fill_pmset)
         layout.addWidget(pmset_btn)
+
+        pmset_btn.setFocusPolicy(QtCore.Qt.NoFocus)
 
         btn_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel

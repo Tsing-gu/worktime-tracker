@@ -80,6 +80,9 @@ class MainWindow(QtWidgets.QMainWindow):
         self._init_timer()
         self._on_startup()
 
+        from src.ui.theme import ThemeManager
+        ThemeManager.instance().theme_changed.connect(self.refresh_ui)
+
     # ─── UI 初始化 ─────────────────────────────────────────
 
     def _init_ui(self):
@@ -99,53 +102,92 @@ class MainWindow(QtWidgets.QMainWindow):
         self.date_label.setAlignment(QtCore.Qt.AlignCenter)
         layout.addWidget(self.date_label)
 
-        # ── 状态行：修改上班 | 上班时间 | 已工作(垂直) | 手动下班 ──
-        status_box = QtWidgets.QHBoxLayout()
-        status_box.setSpacing(12)
+        # ── 今日状态卡片（按钮行 + 信息行 合并）──
+        status_card = QtWidgets.QFrame()
+        status_card.setObjectName("Card")
+        status_layout = QtWidgets.QVBoxLayout(status_card)
+        status_layout.setContentsMargins(16, 16, 16, 16)
+        status_layout.setSpacing(14)
+
+        # 按钮行：修改上班（左）| 手动下班（右）
+        btn_row = QtWidgets.QHBoxLayout()
+        btn_row.setSpacing(12)
 
         self.edit_start_btn = QtWidgets.QPushButton("修改上班")
         self.edit_start_btn.setObjectName("SecondaryBtn")
-        self.edit_start_btn.setFixedSize(80, 32)
+        self.edit_start_btn.setFixedHeight(32)
+        self.edit_start_btn.setFocusPolicy(QtCore.Qt.NoFocus)
         self.edit_start_btn.clicked.connect(self.on_edit_start)
-        status_box.addWidget(self.edit_start_btn)
+        btn_row.addWidget(self.edit_start_btn)
+        btn_row.addStretch()
 
-        self.start_label = QtWidgets.QLabel("上班 --:--")
-        self.start_label.setObjectName("SecText")
-        status_box.addWidget(self.start_label)
-        status_box.addStretch()
+        self.off_btn = QtWidgets.QPushButton("手动下班")
+        self.off_btn.setObjectName("PrimaryBtn")
+        self.off_btn.setFixedHeight(32)
+        self.off_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.off_btn.clicked.connect(self.on_manual_off)
+        btn_row.addWidget(self.off_btn)
+        status_layout.addLayout(btn_row)
+
+        # 信息行：上班时间 | 已工作 | 预计下班
+        info_top = QtWidgets.QHBoxLayout()
+        info_top.setSpacing(24)
+
+        start_vbox = QtWidgets.QVBoxLayout()
+        start_vbox.setSpacing(2)
+        self.start_label = QtWidgets.QLabel("--:--")
+        self.start_label.setObjectName("WorkedValue")
+        self.start_label.setAlignment(QtCore.Qt.AlignCenter)
+        start_vbox.addWidget(self.start_label)
+        start_sub = QtWidgets.QLabel("上班时间")
+        start_sub.setObjectName("WorkedSub")
+        start_sub.setAlignment(QtCore.Qt.AlignCenter)
+        start_vbox.addWidget(start_sub)
+        info_top.addLayout(start_vbox)
+
+        info_top.addStretch()
 
         worked_vbox = QtWidgets.QVBoxLayout()
-        worked_vbox.setSpacing(0)
-        worked_vbox.setAlignment(QtCore.Qt.AlignCenter)
+        worked_vbox.setSpacing(2)
         self.worked_label = QtWidgets.QLabel("0.0h")
         self.worked_label.setObjectName("WorkedValue")
         self.worked_label.setAlignment(QtCore.Qt.AlignCenter)
         worked_vbox.addWidget(self.worked_label)
-
         self.worked_sub = QtWidgets.QLabel("当前已工作")
         self.worked_sub.setObjectName("WorkedSub")
         self.worked_sub.setAlignment(QtCore.Qt.AlignCenter)
         worked_vbox.addWidget(self.worked_sub)
-        status_box.addLayout(worked_vbox)
-        status_box.addStretch()
+        info_top.addLayout(worked_vbox)
 
-        self.off_btn = QtWidgets.QPushButton("手动下班")
-        self.off_btn.setObjectName("PrimaryBtn")
-        self.off_btn.setFixedSize(80, 32)
-        self.off_btn.clicked.connect(self.on_manual_off)
-        status_box.addWidget(self.off_btn)
-        layout.addLayout(status_box)
+        info_top.addStretch()
 
-        # ── 今日进度条 ──
+        eta_vbox = QtWidgets.QVBoxLayout()
+        eta_vbox.setSpacing(2)
+        self.eta_label = QtWidgets.QLabel("--:--")
+        self.eta_label.setObjectName("WorkedValue")
+        self.eta_label.setAlignment(QtCore.Qt.AlignCenter)
+        eta_vbox.addWidget(self.eta_label)
+        eta_sub = QtWidgets.QLabel("预计下班")
+        eta_sub.setObjectName("WorkedSub")
+        eta_sub.setAlignment(QtCore.Qt.AlignCenter)
+        eta_vbox.addWidget(eta_sub)
+        info_top.addLayout(eta_vbox)
+
+        status_layout.addLayout(info_top)
+
+        # 今日进度条 + 达成度
         progress_area = QtWidgets.QVBoxLayout()
         progress_area.setSpacing(6)
         self.progress_label = QtWidgets.QLabel("今日目标 8.0h  0%")
         self.progress_label.setObjectName("SmallSec")
+        self.progress_label.setAlignment(QtCore.Qt.AlignCenter)
         progress_area.addWidget(self.progress_label)
         self.progress_bar = QtWidgets.QProgressBar()
         self.progress_bar.setTextVisible(False)
         progress_area.addWidget(self.progress_bar)
-        layout.addLayout(progress_area)
+        status_layout.addLayout(progress_area)
+
+        layout.addWidget(status_card)
 
         # ── 周/月统计卡片 ──
         cards = QtWidgets.QHBoxLayout()
@@ -169,6 +211,7 @@ class MainWindow(QtWidgets.QMainWindow):
         ]:
             btn = QtWidgets.QPushButton(label)
             btn.setFixedHeight(32)
+            btn.setFocusPolicy(QtCore.Qt.NoFocus)
             btn.clicked.connect(handler)
             btn_box.addWidget(btn)
         layout.addLayout(btn_box)
@@ -644,9 +687,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # ── 上班时间 ──
         if status.start_time:
-            self.start_label.setText(f"上班 {status.start_time.strftime('%H:%M')}")
+            self.start_label.setText(status.start_time.strftime("%H:%M"))
         else:
-            self.start_label.setText("上班 --:--")
+            self.start_label.setText("--:--")
 
         # ── 今日进度 ──
         required = status.required_hours
@@ -655,6 +698,18 @@ class MainWindow(QtWidgets.QMainWindow):
         self.progress_label.setText(f"今日目标 {required:.1f}h  {pct}%")
 
         self.worked_label.setText(f"{status.worked_hours:.1f}h")
+
+        # ── 预计下班时间 ──
+        if status.start_time and not status.end_time:
+            required = status.required_hours
+            remaining = max(0, required - status.worked_hours)
+            from datetime import datetime as _dt, timedelta as _td
+            eta = _dt.now() + _td(hours=remaining)
+            self.eta_label.setText(eta.strftime("%H:%M"))
+        elif status.end_time:
+            self.eta_label.setText("已下班")
+        else:
+            self.eta_label.setText("--:--")
 
         # ── 托盘图标 ──
         self._update_tray_icon(status)
@@ -766,7 +821,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.refresh_ui()
 
     def on_export(self):
-        """导出本月数据：弹窗选择 Excel 或 CSV 格式。"""
+        """导出本月数据为 Excel。"""
         today = compute_work_date(datetime.now())
         if today.month == 12:
             start = date(today.year, 12, 1)
@@ -775,20 +830,37 @@ class MainWindow(QtWidgets.QMainWindow):
             start = date(today.year, today.month, 1)
             end = date(today.year, today.month + 1, 1) - timedelta(days=1)
 
-        msg = QtWidgets.QMessageBox(self)
-        msg.setWindowTitle("导出")
-        msg.setText(f"导出本月数据（{start} ~ {end}）")
-        excel_btn = msg.addButton("导出 Excel", QtWidgets.QMessageBox.AcceptRole)
-        csv_btn = msg.addButton("导出 CSV", QtWidgets.QMessageBox.AcceptRole)
-        msg.addButton("取消", QtWidgets.QMessageBox.RejectRole)
-        msg.exec()
-        exporter = self.service.get_exporter()
-        if msg.clickedButton() is excel_btn:
-            path = exporter.to_excel(start, end)
-        elif msg.clickedButton() is csv_btn:
-            path = exporter.to_csv(start, end)
-        else:
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle("导出")
+        dlg.setMinimumWidth(300)
+        dlg_layout = QtWidgets.QVBoxLayout(dlg)
+        dlg_layout.setContentsMargins(24, 20, 24, 16)
+        dlg_layout.setSpacing(12)
+
+        dlg_layout.addWidget(QtWidgets.QLabel(f"导出本月数据（{start} ~ {end}）"))
+
+        btn_row = QtWidgets.QHBoxLayout()
+        btn_row.setSpacing(8)
+        cancel_btn = QtWidgets.QPushButton("取消")
+        cancel_btn.setObjectName("SecondaryBtn")
+        cancel_btn.setFixedSize(96, 32)
+        cancel_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        cancel_btn.clicked.connect(dlg.reject)
+        btn_row.addWidget(cancel_btn)
+        btn_row.addStretch()
+        export_btn = QtWidgets.QPushButton("导出 Excel")
+        export_btn.setObjectName("PrimaryBtn")
+        export_btn.setFixedSize(96, 32)
+        export_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        export_btn.clicked.connect(lambda: dlg.done(1))
+        btn_row.addWidget(export_btn)
+        dlg_layout.addLayout(btn_row)
+
+        if dlg.exec() != 1:
             return
+
+        exporter = self.service.get_exporter()
+        path = exporter.to_excel(start, end)
         QtWidgets.QMessageBox.information(self, "导出成功", f"文件已保存到：\n{path}")
 
     # ─── 窗口关闭与退出 ────────────────────────────────────

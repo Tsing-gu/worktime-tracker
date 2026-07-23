@@ -9,7 +9,27 @@ theme - 深色/浅色主题与 QSS 样式表
 版本: 0.4.2
 """
 
-from PySide6 import QtWidgets, QtGui
+from PySide6 import QtWidgets, QtGui, QtCore
+
+
+class ThemeManager(QtCore.QObject):
+    """主题管理器：全局信号通知主题切换，任何窗口 connect 即可自动刷新。"""
+
+    theme_changed = QtCore.Signal()
+
+    _instance = None
+
+    @classmethod
+    def instance(cls):
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
+
+    def emit_changed(self):
+        self.theme_changed.emit()
+
+
+_theme_manager = ThemeManager.instance()
 
 
 def is_dark_mode() -> bool:
@@ -36,24 +56,40 @@ def get_theme() -> dict:
     dark = is_dark_mode()
     if dark:
         return {
-            "bg": "#1C1C1E", "card": "#2C2C2E", "card_alt": "#3A3A3C",
-            "stroke": "#3A3A3C", "primary": "#0A84FF",
+            "bg": "#000000", "card": "#1C1C1E", "card_alt": "#2C2C2E",
+            "stroke": "#38383A", "primary": "#0A84FF",
             "main": "#FFFFFF", "sec": "#98989D",
-            "green": "#30D158", "red": "#FF453A", "blue": "#64D2FF",
-            "track": "#4A4A4C", "div": "#3A3A3C",
+            "green": "#30D158", "red": "#FF453A", "blue": "#5E5CE6",
+            "track": "#2C2C2E", "div": "#38383A",
             "btn_bg": "#0A84FF", "btn_text": "#FFFFFF", "btn_border": "transparent",
             "btn_hover": "#0066CC", "btn_pressed": "#0052A3",
-            "input_bg": "#3A3A3C",
+            "input_bg": "#2C2C2E",
+            # 日历状态色（柔和底色 + 饱和前景色）
+            "cal_green_bg": "#1B3A2A", "cal_green_fg": "#30D158",
+            "cal_red_bg": "#3A1B1B", "cal_red_fg": "#FF6961",
+            "cal_blue_bg": "#221D3A", "cal_blue_fg": "#9B8AFB",
+            "cal_holiday_bg": "#2C2C2E", "cal_holiday_fg": "#98989D",
+            "cal_weekend_bg": "#1C1C1E", "cal_weekend_fg": "#6B6B70",
+            "cal_workday_bg": "#2C2C2E", "cal_workday_fg": "#98989D",
+            "cal_overtime_bg": "#1A2238", "cal_overtime_fg": "#5AB4FF",
         }
     return {
         "bg": "#F5F5F7", "card": "#FFFFFF", "card_alt": "#F0F0F2",
-        "stroke": "#E5E5EA", "primary": "#0A84FF",
+        "stroke": "#E5E5EA", "primary": "#007AFF",
         "main": "#1D1D1F", "sec": "#86868B",
-        "green": "#30D158", "red": "#FF453A", "blue": "#64D2FF",
+        "green": "#34C759", "red": "#FF3B30", "blue": "#5856D6",
         "track": "#E5E5EA", "div": "#E5E5EA",
-        "btn_bg": "#0A84FF", "btn_text": "#FFFFFF", "btn_border": "transparent",
+        "btn_bg": "#007AFF", "btn_text": "#FFFFFF", "btn_border": "transparent",
         "btn_hover": "#0066CC", "btn_pressed": "#0052A3",
         "input_bg": "#F5F5F7",
+        # 日历状态色（柔和底色 + 饱和前景色）
+        "cal_green_bg": "#E8F8EE", "cal_green_fg": "#1A8B3A",
+        "cal_red_bg": "#FDECEA", "cal_red_fg": "#D32F2F",
+        "cal_blue_bg": "#EFEDF8", "cal_blue_fg": "#5B4FCF",
+        "cal_holiday_bg": "#F0F0F2", "cal_holiday_fg": "#86868B",
+        "cal_weekend_bg": "#F5F5F7", "cal_weekend_fg": "#AEAEB2",
+        "cal_workday_bg": "#FFFFFF", "cal_workday_fg": "#86868B",
+        "cal_overtime_bg": "#E8F0FE", "cal_overtime_fg": "#0A6CD9",
     }
 
 
@@ -175,10 +211,16 @@ def build_qss(t: dict) -> str:
         font-size: 13px;
         font-weight: 500;
         min-height: 24px;
+        outline: none;
     }}
     QPushButton:hover {{
         background-color: {t['card_alt']};
         border-color: {t['primary']};
+    }}
+    QPushButton:focus {{
+        background-color: {t['card_alt']};
+        border-color: {t['primary']};
+        outline: none;
     }}
     QPushButton:pressed {{
         background-color: {t['stroke']};
@@ -287,6 +329,26 @@ def build_qss(t: dict) -> str:
     }}
     QDialogButtonBox QPushButton {{
         min-width: 72px;
+        border: 1px solid {t['stroke']};
+        border-radius: 8px;
+        padding: 6px 16px;
+        font-size: 13px;
+        font-weight: 500;
+        min-height: 24px;
+        background-color: {t['card']};
+        color: {t['main']};
+    }}
+    QDialogButtonBox QPushButton:hover {{
+        background-color: {t['card_alt']};
+        border-color: {t['primary']};
+    }}
+    QDialogButtonBox QPushButton:focus {{
+        background-color: {t['card_alt']};
+        border-color: {t['primary']};
+        outline: none;
+    }}
+    QDialogButtonBox QPushButton:pressed {{
+        background-color: {t['stroke']};
     }}
     QMenu {{
         background-color: {t['card']};
@@ -379,7 +441,14 @@ def build_qss(t: dict) -> str:
         font-size: 14px;
     }}
     QLabel#DayCellInfo {{
-        font-size: 11px;
+        font-size: 9px;
+    }}
+    QLabel#WeekHeader {{
+        font-size: 13px;
+        font-weight: bold;
+        color: {t['sec']};
+        background-color: {t['card_alt']};
+        border-radius: 6px;
     }}
     QLabel#TrayWorked {{
         font-size: 16px;

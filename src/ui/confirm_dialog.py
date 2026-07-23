@@ -56,6 +56,7 @@ class ConfirmYesterdayDialog(QtWidgets.QDialog):
         # ── 下班时间（可编辑）──
         layout.addWidget(QtWidgets.QLabel("下班时间："))
         self.end_time_edit = QtWidgets.QTimeEdit()
+        self.end_time_edit.setFocusPolicy(QtCore.Qt.NoFocus)
         if end_str and len(end_str) > 11:
             h, m = map(int, end_str[11:16].split(":"))
             self.end_time_edit.setTime(QtCore.QTime(h, m))

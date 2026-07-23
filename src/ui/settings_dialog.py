@@ -63,29 +63,34 @@ class SettingsDialog(QtWidgets.QDialog):
         work_form.setSpacing(10)
 
         self.daily_hours = QtWidgets.QDoubleSpinBox()
+        self.daily_hours.setFocusPolicy(QtCore.Qt.NoFocus)
         self.daily_hours.setRange(1, 24)
         self.daily_hours.setSingleStep(0.5)
         self.daily_hours.setValue(float(settings.get(SETTING_DAILY_REQUIRED_HOURS, "8.0")))
         work_form.addRow("每日工时要求（小时）", self.daily_hours)
 
         self.weekly_days = QtWidgets.QSpinBox()
+        self.weekly_days.setFocusPolicy(QtCore.Qt.NoFocus)
         self.weekly_days.setRange(1, 7)
         self.weekly_days.setValue(int(settings.get(SETTING_WEEKLY_WORK_DAYS, "5")))
         work_form.addRow("每周工作天数", self.weekly_days)
 
         self.off_threshold = QtWidgets.QSpinBox()
+        self.off_threshold.setFocusPolicy(QtCore.Qt.NoFocus)
         self.off_threshold.setRange(5, 480)
         self.off_threshold.setSuffix(" 分钟")
         self.off_threshold.setValue(int(settings.get(SETTING_OFF_THRESHOLD_MINUTES, "60")))
         work_form.addRow("下班判定：离开等待时长", self.off_threshold)
 
         self.off_floor = QtWidgets.QTimeEdit()
+        self.off_floor.setFocusPolicy(QtCore.Qt.NoFocus)
         floor_str = settings.get(SETTING_OFF_TIME_FLOOR, "19:00")
         h, m = map(int, floor_str.split(":"))
         self.off_floor.setTime(QtCore.QTime(h, m))
         work_form.addRow("下班判定：时间下限", self.off_floor)
 
         self.work_start_floor = QtWidgets.QTimeEdit()
+        self.work_start_floor.setFocusPolicy(QtCore.Qt.NoFocus)
         start_floor_str = settings.get(SETTING_WORK_START_FLOOR, "06:00")
         sh, sm = map(int, start_floor_str.split(":"))
         self.work_start_floor.setTime(QtCore.QTime(sh, sm))
@@ -146,6 +151,17 @@ class SettingsDialog(QtWidgets.QDialog):
         self.check_update_btn.clicked.connect(self._on_check_update)
         bottom_bar.addWidget(self.check_update_btn)
         main_layout.addLayout(bottom_bar)
+
+        # ── 确认/取消按钮 ──
+        btn_box = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        )
+        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
+        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
+        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.NoFocus)
+        self.check_update_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.record_office_btn.setFocusPolicy(QtCore.Qt.NoFocus)
 
         # ── 确认/取消按钮 ──
         btn_box = QtWidgets.QDialogButtonBox(

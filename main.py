@@ -24,17 +24,32 @@ from src.utils.version import get_version
 
 
 class _DockReopenFilter(QtCore.QObject):
-    """捕获应用激活事件（macOS 点击 dock 图标时触发），重新展开主窗口。"""
+    """捕获应用激活事件 + 系统主题切换事件。"""
 
     def __init__(self, window):
         super().__init__()
         self._window = window
+        self._app = QtWidgets.QApplication.instance()
+        self._theme_timer = None
 
     def eventFilter(self, obj, event):
         if event.type() == QtCore.QEvent.ApplicationActivate:
             if not self._window.isVisible():
                 self._window.show_normal()
+        elif event.type() == QtCore.QEvent.PaletteChange:
+            # 系统切换深色/浅色模式时重新应用 QSS（防抖避免频繁触发）
+            if self._theme_timer:
+                self._theme_timer.stop()
+            self._theme_timer = QtCore.QTimer()
+            self._theme_timer.setSingleShot(True)
+            self._theme_timer.timeout.connect(self._reapply_theme)
+            self._theme_timer.start(200)
         return super().eventFilter(obj, event)
+
+    def _reapply_theme(self):
+        from src.ui.theme import get_theme, build_qss, ThemeManager
+        self._app.setStyleSheet(build_qss(get_theme()))
+        ThemeManager.instance().emit_changed()
 
 
 def main():

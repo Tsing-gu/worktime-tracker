@@ -47,22 +47,22 @@ class DayCell(QtWidgets.QFrame):
         super().__init__(parent)
         self.work_date = work_date
         self.setObjectName("DayCell")
-        self.setFixedSize(88, 76)
+        self.setFixedSize(100, 84)
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(0)
+        layout.setContentsMargins(8, 6, 8, 6)
+        layout.setSpacing(2)
 
         # 日期数字
         self.day_label = QtWidgets.QLabel(str(day))
         self.day_label.setStyleSheet("font-weight: bold;")
-        self.day_label.setAlignment(QtCore.Qt.AlignLeft)
+        self.day_label.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
         layout.addWidget(self.day_label)
 
         # 工时/状态信息
         self.info_label = QtWidgets.QLabel("")
         self.info_label.setObjectName("DayCellInfo")
-        self.info_label.setAlignment(QtCore.Qt.AlignLeft)
+        self.info_label.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
         self.info_label.setWordWrap(True)
         layout.addWidget(self.info_label)
 
@@ -105,19 +105,23 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("日历")
-        self.setMinimumSize(720, 600)
+        self.setMinimumSize(820, 660)
         self.service = service or WorktimeService()
 
+        from src.ui.theme import ThemeManager
+        ThemeManager.instance().theme_changed.connect(self.load_data)
+
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 16)
+        layout.setContentsMargins(24, 20, 24, 16)
         layout.setSpacing(12)
 
         # ── 顶部控制栏 ──
         ctrl = QtWidgets.QHBoxLayout()
         ctrl.setSpacing(8)
 
-        prev_btn = QtWidgets.QPushButton("<")
-        prev_btn.setFixedSize(36, 30)
+        prev_btn = QtWidgets.QPushButton("◀")
+        prev_btn.setFixedSize(44, 32)
+        prev_btn.setFocusPolicy(QtCore.Qt.NoFocus)
         prev_btn.clicked.connect(self.prev_month)
         ctrl.addWidget(prev_btn)
 
@@ -125,51 +129,77 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         self.month_label.setObjectName("DateLabel")
         self.month_label.setAlignment(QtCore.Qt.AlignCenter)
         ctrl.addWidget(self.month_label)
-        ctrl.addStretch()
 
-        next_btn = QtWidgets.QPushButton(">")
-        next_btn.setFixedSize(36, 30)
+        next_btn = QtWidgets.QPushButton("▶")
+        next_btn.setFixedSize(44, 32)
+        next_btn.setFocusPolicy(QtCore.Qt.NoFocus)
         next_btn.clicked.connect(self.next_month)
         ctrl.addWidget(next_btn)
 
         today_btn = QtWidgets.QPushButton("本月")
+        today_btn.setFixedHeight(32)
+        today_btn.setFocusPolicy(QtCore.Qt.NoFocus)
         today_btn.clicked.connect(self.go_today)
         ctrl.addWidget(today_btn)
-        ctrl.addSpacing(16)
-
-        export_csv_btn = QtWidgets.QPushButton("导出CSV")
-        export_csv_btn.clicked.connect(lambda: self.export_data("csv"))
-        ctrl.addWidget(export_csv_btn)
-
-        export_xlsx_btn = QtWidgets.QPushButton("导出Excel")
-        export_xlsx_btn.clicked.connect(lambda: self.export_data("excel"))
-        ctrl.addWidget(export_xlsx_btn)
+        ctrl.addStretch()
         layout.addLayout(ctrl)
+
+        layout.addStretch()  # 顶部弹性空间
+
+        # ── 日历主体 Card（固定宽度，居中）──
+        theme = get_theme()
+        cal_card = QtWidgets.QFrame()
+        cal_card.setObjectName("Card")
+        cal_card.setFixedWidth(756)  # 7*100 + 6*4 + 32 margins
+        cal_layout = QtWidgets.QVBoxLayout(cal_card)
+        cal_layout.setContentsMargins(16, 16, 16, 16)
+        cal_layout.setSpacing(10)
 
         # ── 星期表头 ──
         header_row = QtWidgets.QHBoxLayout()
         header_row.setSpacing(4)
         for name in ["一", "二", "三", "四", "五", "六", "日"]:
             lbl = QtWidgets.QLabel(name)
-            lbl.setObjectName("SmallSec")
+            lbl.setObjectName("WeekHeader")
             lbl.setAlignment(QtCore.Qt.AlignCenter)
-            lbl.setFixedSize(88, 24)
+            lbl.setFixedHeight(28)
             header_row.addWidget(lbl)
-        layout.addLayout(header_row)
+        cal_layout.addLayout(header_row)
 
         # ── 日历网格容器 ──
         self.grid_container = QtWidgets.QWidget()
         self.grid_layout = QtWidgets.QGridLayout(self.grid_container)
         self.grid_layout.setSpacing(4)
         self.grid_layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.grid_container)
+        cal_layout.addWidget(self.grid_container)
+
+        # 居中放置 Card（上下左右居中）
+        center_row = QtWidgets.QHBoxLayout()
+        center_row.addStretch()
+        center_row.addWidget(cal_card)
+        center_row.addStretch()
+        layout.addLayout(center_row)
         layout.addStretch()
 
-        # ── 底部说明 ──
-        info_label = QtWidgets.QLabel("右键日期可请假/补录/清除 | 绿色=达标 红色=不足 蓝色=请假 灰色=节假日")
-        info_label.setObjectName("SmallSec")
-        info_label.setAlignment(QtCore.Qt.AlignCenter)
-        layout.addWidget(info_label)
+        # ── 底部图例 ──
+        legend = QtWidgets.QHBoxLayout()
+        legend.setSpacing(16)
+        legend.setAlignment(QtCore.Qt.AlignCenter)
+        for color, label in [
+            (theme["cal_green_fg"], "达标"),
+            (theme["cal_red_fg"], "不足"),
+            (theme["cal_blue_fg"], "请假"),
+            (theme["cal_holiday_fg"], "节假日"),
+        ]:
+            dot = QtWidgets.QFrame()
+            dot.setFixedSize(12, 12)
+            dot.setStyleSheet(f"background-color: {color}; border-radius: 6px; border: 1px solid {theme['stroke']};")
+            legend.addWidget(dot)
+            legend.addWidget(QtWidgets.QLabel(label))
+        hint = QtWidgets.QLabel("右键日期可请假/补录/清除")
+        hint.setObjectName("SmallSec")
+        legend.addWidget(hint)
+        layout.addLayout(legend)
 
         # 当前显示的年/月
         _today = compute_work_date(datetime.now())
@@ -265,18 +295,17 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
             if rec and rec.get("leave_type") and rec["leave_type"] != "none":
                 # 请假
                 leave_text = LEAVE_TYPES.get(rec["leave_type"], rec["leave_type"])
-                cell.set_status(leave_text, f"{theme['blue']}30", theme["blue"])
+                cell.set_status(leave_text, theme["cal_blue_bg"], theme["cal_blue_fg"])
             elif hol and hol.get("is_off_day"):
                 # 法定假日
-                cell.set_status(hol["name"], theme["card_alt"], theme["sec"])
+                cell.set_status(hol["name"], theme["cal_holiday_bg"], theme["cal_holiday_fg"])
             elif hol and not hol.get("is_off_day"):
                 # 调休上班日
                 total = rec.get("total_hours", 0) if rec else 0
-                cell.set_status(f"调休 {total:.1f}h" if total else "调休上班", f"{theme['primary']}20", theme["primary"])
+                cell.set_status(f"调休 {total:.1f}h" if total else "调休上班", theme["cal_overtime_bg"], theme["cal_overtime_fg"])
             elif rec and rec.get("total_hours"):
                 # 有工时记录
                 total = rec["total_hours"]
-                # 逐条从 DB 读 required_hours，fallback 到默认值
                 rec_required = rec.get("required_hours")
                 cell_required = rec_required if rec_required is not None else default_required
                 reached = total >= cell_required
@@ -285,15 +314,15 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
                 start_short = start_str[11:16] if len(start_str) > 11 else ""
                 end_short = end_str[11:16] if len(end_str) > 11 else ""
                 if reached:
-                    cell.set_status(f"{total:.1f}h\n{start_short}-{end_short}", f"{theme['green']}30", theme["green"])
+                    cell.set_status(f"{total:.1f}h\n{start_short}-{end_short}", theme["cal_green_bg"], theme["cal_green_fg"])
                 else:
-                    cell.set_status(f"{total:.1f}h\n{start_short}-{end_short}", f"{theme['red']}30", theme["red"])
+                    cell.set_status(f"{total:.1f}h\n{start_short}-{end_short}", theme["cal_red_bg"], theme["cal_red_fg"])
             else:
                 # 无记录
                 if d.weekday() >= 5:
-                    cell.set_status("周末", theme["card_alt"], theme["sec"])
+                    cell.set_status("周末", theme["cal_weekend_bg"], theme["cal_weekend_fg"])
                 else:
-                    cell.set_status("--", theme["card"], theme["sec"])
+                    cell.set_status("--", theme["cal_workday_bg"], theme["cal_workday_fg"])
 
             # 标记今天（按 6:00 跨天归属）
             if d == compute_work_date(datetime.now()):
@@ -393,6 +422,7 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         layout.addWidget(QtWidgets.QLabel(label_text))
         edit = QtWidgets.QLineEdit(default_text)
         edit.setPlaceholderText("HH:MM")
+        edit.setFocusPolicy(QtCore.Qt.ClickFocus)
         layout.addWidget(edit)
         btn_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
@@ -422,28 +452,3 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         if msg.clickedButton() == yes_btn:
             self.service.clear_record(work_date_str)
             self.load_data()
-
-    # ─── 导出 ─────────────────────────────────────────────
-
-    def export_data(self, fmt: str):
-        """
-        导出当前查看月份的数据。
-
-        Args:
-            fmt: 导出格式 "csv" 或 "excel"
-        """
-        year, month = self._current_year, self._current_month
-        if month == 12:
-            start = date(year, month, 1)
-            end = date(year, month, 31)
-        else:
-            start = date(year, month, 1)
-            end = date(year, month + 1, 1) - timedelta(days=1)
-
-        exporter = self.service.get_exporter()
-        if fmt == "csv":
-            path = exporter.to_csv(start, end)
-        else:
-            path = exporter.to_excel(start, end)
-
-        QtWidgets.QMessageBox.information(self, "导出成功", f"文件已保存到：\n{path}")

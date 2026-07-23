@@ -42,6 +42,7 @@ class LeaveDialog(QtWidgets.QDialog):
         # ── 请假日期选择 ──
         layout.addWidget(QtWidgets.QLabel("请假日期："))
         self.date_edit = QtWidgets.QDateEdit()
+        self.date_edit.setFocusPolicy(QtCore.Qt.NoFocus)
         self.date_edit.setDisplayFormat("yyyy-MM-dd")
         self.date_edit.setCalendarPopup(True)
         if default_date:
@@ -53,6 +54,7 @@ class LeaveDialog(QtWidgets.QDialog):
         # ── 请假类型选择 ──
         layout.addWidget(QtWidgets.QLabel("请假类型："))
         self.type_combo = QtWidgets.QComboBox()
+        self.type_combo.setFocusPolicy(QtCore.Qt.NoFocus)
         self.type_map = LEAVE_TYPES  # {"annual": "年假", "sick": "病假", ...}
         for t in self.type_map:
             self.type_combo.addItem(self.type_map[t])
