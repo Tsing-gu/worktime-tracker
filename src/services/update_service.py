@@ -64,22 +64,26 @@ class UpdateService:
     # ─── 版本检查 ──────────────────────────────────────────
 
     def check_for_updates(self) -> Optional[UpdateInfo]:
-        """拉取 appcast.xml，解析最新版本，与本地 VERSION 对比。"""
-        try:
-            xml_content = self._fetch_feed()
-            if not xml_content:
-                return None
+        """拉取 appcast.xml，解析最新版本，与本地 VERSION 对比。
 
-            info = self._parse_appcast(xml_content)
-            if not info:
-                return None
+        Returns:
+            UpdateInfo: 有新版本
+            None:       已是最新版本
 
-            if self._is_newer(info.short_version):
-                return info
-            return None
-        except Exception as e:
-            print(f"[Update] 检查更新失败：{e}")
-            return None
+        Raises:
+            RuntimeError: 拉取或解析 appcast 失败（网络问题等）
+        """
+        xml_content = self._fetch_feed()
+        if not xml_content:
+            raise RuntimeError("无法连接更新服务器，请检查网络")
+
+        info = self._parse_appcast(xml_content)
+        if not info:
+            raise RuntimeError("解析更新信息失败")
+
+        if self._is_newer(info.short_version):
+            return info
+        return None
 
     def _fetch_feed(self) -> Optional[str]:
         """拉取 appcast.xml，主 URL 失败则用 jsDelivr 备用。"""
