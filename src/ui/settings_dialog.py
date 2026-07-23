@@ -112,6 +112,7 @@ class SettingsDialog(QtWidgets.QDialog):
         # ── 只记录在公司时间 ──
         self.only_office = QtWidgets.QCheckBox("只记录在公司时间（需先记录办公网络）")
         self.only_office.setChecked(settings.get(SETTING_ONLY_OFFICE_TIME, "1") == "1")
+        self.only_office.stateChanged.connect(self._on_only_office_toggled)
         layout.addRow(self.only_office)
 
         # ── 检查更新按钮 ──
@@ -140,6 +141,8 @@ class SettingsDialog(QtWidgets.QDialog):
         btn_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         )
+        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
+        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
         btn_box.accepted.connect(self.accept)
         btn_box.rejected.connect(self.reject)
         layout.addRow(btn_box)
@@ -164,6 +167,15 @@ class SettingsDialog(QtWidgets.QDialog):
             SETTING_ONLY_OFFICE_TIME: "1" if self.only_office.isChecked() else "0",
             SETTING_OFFICE_NETWORK_DOMAIN: self._office_domain,
         }
+
+    def _on_only_office_toggled(self, state):
+        """勾选「只记录在公司时间」时，若办公网络未设置则提示并阻止勾选。"""
+        if state == QtCore.Qt.Checked and not self._office_domain:
+            QtWidgets.QMessageBox.warning(
+                self, "无法启用",
+                "请先在下方「办公网络」处记录办公网络，才能启用此功能。"
+            )
+            self.only_office.setCheckState(QtCore.Qt.Unchecked)
 
     def _on_check_update(self):
         """立即检查更新，调用父窗口（MainWindow）的更新逻辑。"""

@@ -55,7 +55,7 @@ class LeaveDialog(QtWidgets.QDialog):
         self.type_combo = QtWidgets.QComboBox()
         self.type_map = LEAVE_TYPES  # {"annual": "年假", "sick": "病假", ...}
         for t in self.type_map:
-            self.type_combo.addItem(t)
+            self.type_combo.addItem(self.type_map[t])
         layout.addWidget(self.type_combo)
 
         # ── 确认/取消按钮 ──

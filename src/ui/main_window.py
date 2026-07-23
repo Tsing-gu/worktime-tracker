@@ -721,6 +721,8 @@ class MainWindow(QtWidgets.QMainWindow):
         btn_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         )
+        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
+        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
         btn_box.accepted.connect(dialog.accept)
         btn_box.rejected.connect(dialog.reject)
         layout.addWidget(btn_box)
@@ -801,7 +803,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         choice = QtWidgets.QMessageBox.question(
             self, "导出",
-            f"导出本月数据（{start} ~ {end}）？\n点击 Yes 导出 Excel，No 导出 CSV",
+            f"导出本月数据（{start} ~ {end}）？\n点击「是」导出 Excel，「否」导出 CSV",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel,
         )
         exporter = self.service.get_exporter()

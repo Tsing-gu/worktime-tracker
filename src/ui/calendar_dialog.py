@@ -369,16 +369,12 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
                 end_default = existing["end_time"][11:16]
 
         # 输入上班时间
-        start_str, ok = QtWidgets.QInputDialog.getText(
-            self, "手动补录", f"{work_date_str} 上班时间 (HH:MM)：", text=start_default
-        )
-        if not ok:
+        start_str = self._input_dialog(f"{work_date_str} 上班时间 (HH:MM)：", start_default)
+        if start_str is None:
             return
         # 输入下班时间
-        end_str, ok = QtWidgets.QInputDialog.getText(
-            self, "手动补录", f"{work_date_str} 下班时间 (HH:MM)：", text=end_default
-        )
-        if not ok:
+        end_str = self._input_dialog(f"{work_date_str} 下班时间 (HH:MM)：", end_default)
+        if end_str is None:
             return
 
         # 调用 service 保存
@@ -388,6 +384,28 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         except ValueError as e:
             QtWidgets.QMessageBox.warning(self, "格式错误", str(e))
 
+    def _input_dialog(self, label_text: str, default_text: str = ""):
+        """自定义文本输入对话框（按钮中文化）。返回文本或 None（取消）。"""
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("手动补录")
+        dialog.setMinimumWidth(280)
+        layout = QtWidgets.QVBoxLayout(dialog)
+        layout.addWidget(QtWidgets.QLabel(label_text))
+        edit = QtWidgets.QLineEdit(default_text)
+        edit.setPlaceholderText("HH:MM")
+        layout.addWidget(edit)
+        btn_box = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
+        )
+        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
+        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
+        btn_box.accepted.connect(dialog.accept)
+        btn_box.rejected.connect(dialog.reject)
+        layout.addWidget(btn_box)
+        if dialog.exec() == QtWidgets.QDialog.Accepted:
+            return edit.text().strip()
+        return None
+
     def clear_record(self, work_date_str: str):
         """
         清除指定日期的工时记录（需二次确认）。
@@ -395,10 +413,13 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         Args:
             work_date_str: 工作日日期字符串
         """
-        reply = QtWidgets.QMessageBox.question(
-            self, "确认", f"确认清除 {work_date_str} 的记录？"
-        )
-        if reply == QtWidgets.QMessageBox.Yes:
+        msg = QtWidgets.QMessageBox(self)
+        msg.setWindowTitle("确认")
+        msg.setText(f"确认清除 {work_date_str} 的记录？")
+        yes_btn = msg.addButton("确认", QtWidgets.QMessageBox.YesRole)
+        msg.addButton("取消", QtWidgets.QMessageBox.NoRole)
+        msg.exec()
+        if msg.clickedButton() == yes_btn:
             self.service.clear_record(work_date_str)
             self.load_data()
 
