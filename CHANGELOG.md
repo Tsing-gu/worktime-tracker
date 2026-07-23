@@ -1,3 +1,11 @@
+## [0.8.4] - 2026-07-23
+
+- **修复**: 修复睡眠跨天场景下班时间未记录：reset_for_new_day 抢在下班检测之前执行，导致前一天 end_time 永远为 NULL。新增 _backfill_off_time 在跨天重置前用 now-idle 补录下班时间
+
+## [0.8.3] - 2026-07-23
+
+- **新增**: 公司网络交叉验证：每 30 秒轮询时检测 DHCP domain_search，at_office 写入 activity_events 底表；设置弹窗新增「记录办公网络」按钮，点击检测当前网络域名存入 settings（office_network_domain），参数化公司内网名
+
 ## [0.8.2] - 2026-07-21
 
 - **修复**: 修复跨天后主页日期不自动刷新：date_label 仅在 __init__ 设置一次，refresh_ui 未更新，导致跨天后日期滞后一天直到重启软件

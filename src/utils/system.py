@@ -89,6 +89,43 @@ def get_last_active_time(idle_seconds: float, now: datetime = None) -> Optional[
     return now - timedelta(seconds=idle_seconds)
 
 
+# ─── 网络在线状态 ─────────────────────────────────────────────
+
+def get_network_status(office_domain: str = "") -> dict:
+    """
+    检测当前网络是否属公司内网。
+
+    通过解析 DHCP 下发的 domain_search 字段判定：
+    - 与 office_domain 匹配 → 在公司内网
+    - office_domain 为空或不匹配 → 不在公司
+
+    与 HID 活动检测并行调用，互不依赖。
+
+    Args:
+        office_domain: 配置的公司内网域名（来自 settings 表）
+
+    Returns:
+        {"at_office": bool, "domain": str}
+        at_office: True=在公司内网, False=不在
+        domain:    实际下发的搜索域字符串（失败时为空串）
+    """
+    try:
+        result = subprocess.run(
+            ["ipconfig", "getpacket", "en0"],
+            capture_output=True, text=True, timeout=3,
+        )
+    except Exception:
+        return {"at_office": False, "domain": ""}
+
+    for line in result.stdout.split("\n"):
+        if "domain_search" in line:
+            m = re.search(r"\{(.+?)\}", line)
+            if m:
+                domain = m.group(1).strip()
+                return {"at_office": domain == office_domain if office_domain else False, "domain": domain}
+    return {"at_office": False, "domain": ""}
+
+
 # ─── pmset 电源日志 ───────────────────────────────────────────
 
 def get_first_active_from_pmset(work_date, work_start_floor: str = "06:00") -> Optional[datetime]:

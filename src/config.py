@@ -32,6 +32,7 @@ SETTING_AUTO_START = "auto_start"
 SETTING_HOLIDAY_AUTO_EXCLUDE = "holiday_auto_exclude"
 SETTING_AUTO_UPDATE = "auto_update"
 SETTING_LAST_UPDATE_CHECK = "last_update_check"
+SETTING_OFFICE_NETWORK_DOMAIN = "office_network_domain"
 
 # ─── 默认值 ──────────────────────────────────────────────────
 DEFAULT_SETTINGS = {
@@ -46,6 +47,7 @@ DEFAULT_SETTINGS = {
     SETTING_HOLIDAY_AUTO_EXCLUDE: "1",
     SETTING_AUTO_UPDATE: "0",
     SETTING_LAST_UPDATE_CHECK: "",
+    SETTING_OFFICE_NETWORK_DOMAIN: "",
 }
 
 # ─── 追踪参数 ────────────────────────────────────────────────

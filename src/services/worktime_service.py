@@ -32,6 +32,7 @@ from src.config import (
     SETTING_NOTIFY_ON_TARGET,
     SETTING_NOTIFY_ON_OFF,
     SETTING_HOLIDAY_AUTO_EXCLUDE,
+    SETTING_OFFICE_NETWORK_DOMAIN,
     LEAVE_TYPES,
     HOLIDAY_API_URLS,
     HOLIDAY_CACHE_FILE,
@@ -146,19 +147,26 @@ class WorktimeService:
         """执行一次完整轮询: 读取 HID → 记录活动 → 判定事件 → 持久化。"""
         now = datetime.now()
 
+        # 读取当前 HID 状态（跨天补录用，需在 reset 之前读取）
+        from src.utils.system import get_hid_idle_seconds, is_currently_active, get_network_status, get_last_active_time
+        idle = get_hid_idle_seconds()
+
         # 跨天检测
         new_work_date = compute_work_date(now)
         if new_work_date != self.current_work_date:
+            # 补录昨天未记录的下班时间（睡眠跨天场景）
+            self._backfill_off_time(self.current_work_date, now, idle)
             self.tracker.reset_for_new_day()
             self.current_work_date = new_work_date
 
-        # 读取当前 HID 状态
-        from src.utils.system import get_hid_idle_seconds, is_currently_active
-        idle = get_hid_idle_seconds()
         active = is_currently_active(idle)
 
+        # 检测网络位置（与 HID 检测并行）
+        office_domain = self.settings_repo.get(SETTING_OFFICE_NETWORK_DOMAIN, "")
+        at_office = get_network_status(office_domain)["at_office"]
+
         # 持久化活动记录
-        self.activity_repo.record(now, idle, active)
+        self.activity_repo.record(now, idle, active, at_office=at_office)
 
         # 每天首次轮询时清理过期活动记录（保留 14 天）
         today = now.date()
@@ -215,6 +223,52 @@ class WorktimeService:
             )
 
         return result
+
+    def _backfill_off_time(self, prev_date, now: datetime, idle: float):
+        """跨天时补录前一天未记录的下班时间。
+
+        睡眠跨天场景：用户晚上合盖睡眠，次日唤醒时跨天重置抢在下班检测之前，
+        导致前一天的 end_time 永远为 NULL。此方法在 reset_for_new_day 之前调用，
+        用 now - idle 推算最后一次活动时刻作为下班时间。
+
+        仅当：前一天有 start_time 且无 end_time 且未手动下班时补录。
+        """
+        if prev_date is None:
+            return
+
+        daily = self.worktime_repo.get(prev_date)
+        if not daily or not daily.get("start_time") or daily.get("end_time"):
+            return
+        if daily.get("source") == "manual":
+            return
+
+        start_time = datetime.strptime(daily["start_time"], "%Y-%m-%d %H:%M:%S")
+        off_time = get_last_active_time(idle, now) if idle >= 0 else None
+        if off_time is None:
+            return
+
+        # off_time 不应早于 start_time（正常不会，防御性检查）
+        if off_time <= start_time:
+            return
+
+        # 读取下班时间下限设置，对齐到下限
+        off_floor = self.settings_repo.get(SETTING_OFF_TIME_FLOOR, "19:00")
+        off_floor_h, off_floor_m = map(int, off_floor.split(":"))
+        off_total_min = off_time.hour * 60 + off_time.minute
+        floor_total_min = off_floor_h * 60 + off_floor_m
+        if off_total_min < floor_total_min:
+            off_time = off_time.replace(hour=off_floor_h, minute=off_floor_m, second=0, microsecond=0)
+
+        total_hours = (off_time - start_time).total_seconds() / 3600.0
+        daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+        self.worktime_repo.upsert(
+            prev_date,
+            end_time=off_time,
+            total_hours=total_hours,
+            required_hours=daily_required,
+            is_confirmed=0,
+            source="auto",
+        )
 
     # ─── 手动下班 ──────────────────────────────────────────
 

@@ -79,7 +79,8 @@ class Database:
             timestamp DATETIME NOT NULL,
             idle_seconds REAL NOT NULL,
             is_active INTEGER NOT NULL,
-            work_date DATE NOT NULL
+            work_date DATE NOT NULL,
+            at_office INTEGER DEFAULT 0
         )""")
 
         c.execute("""CREATE TABLE IF NOT EXISTS daily_worktime (
@@ -111,6 +112,12 @@ class Database:
 
         c.execute("CREATE INDEX IF NOT EXISTS idx_activity_work_date ON activity_events(work_date)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_activity_ts ON activity_events(timestamp)")
+
+        # ── migration: 给老库 activity_events 补 at_office 字段 ──
+        c.execute("PRAGMA table_info(activity_events)")
+        act_cols = {row[1] for row in c.fetchall()}
+        if "at_office" not in act_cols:
+            c.execute("ALTER TABLE activity_events ADD COLUMN at_office INTEGER DEFAULT 0")
 
         for key, value in DEFAULT_SETTINGS.items():
             c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))
