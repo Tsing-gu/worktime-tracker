@@ -55,13 +55,13 @@ class DayCell(QtWidgets.QFrame):
 
         # 日期数字
         self.day_label = QtWidgets.QLabel(str(day))
-        self.day_label.setStyleSheet("font-size: 14px; font-weight: bold;")
+        self.day_label.setStyleSheet("font-weight: bold;")
         self.day_label.setAlignment(QtCore.Qt.AlignLeft)
         layout.addWidget(self.day_label)
 
         # 工时/状态信息
         self.info_label = QtWidgets.QLabel("")
-        self.info_label.setStyleSheet("font-size: 11px;")
+        self.info_label.setObjectName("DayCellInfo")
         self.info_label.setAlignment(QtCore.Qt.AlignLeft)
         self.info_label.setWordWrap(True)
         layout.addWidget(self.info_label)

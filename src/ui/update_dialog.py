@@ -12,7 +12,7 @@ update_dialog - 更新确认与下载进度弹窗
 
 from PySide6 import QtWidgets, QtCore, QtGui
 
-from src.ui.theme import get_theme
+from src.utils.version import get_version
 
 
 class UpdateConfirmDialog(QtWidgets.QDialog):
@@ -27,29 +27,22 @@ class UpdateConfirmDialog(QtWidgets.QDialog):
         self.setWindowTitle("发现新版本")
         self.setMinimumWidth(380)
 
-        t = get_theme()
-        self.setStyleSheet(f"""
-            QDialog {{ background-color: {t['bg']}; }}
-            QLabel {{ color: {t['main']}; }}
-            QCheckBox {{ color: {t['sec']}; }}
-        """)
-
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(12)
 
         title = QtWidgets.QLabel(f"新版本 {info.short_version} 可用")
-        title.setStyleSheet(f"font-size: 18px; font-weight: bold; color: {t['primary']};")
+        title.setObjectName("UpdateTitle")
         layout.addWidget(title)
 
-        cur_label = QtWidgets.QLabel(f"当前版本：{__import__('src.utils.version', fromlist=['get_version']).get_version()}")
-        cur_label.setStyleSheet(f"font-size: 12px; color: {t['sec']};")
+        cur_label = QtWidgets.QLabel(f"当前版本：{get_version()}")
+        cur_label.setObjectName("UpdateCur")
         layout.addWidget(cur_label)
 
         if info.description:
             desc = QtWidgets.QLabel(info.description)
+            desc.setObjectName("UpdateDesc")
             desc.setWordWrap(True)
-            desc.setStyleSheet(f"font-size: 13px; color: {t['main']};")
             layout.addWidget(desc)
 
         btn_box = QtWidgets.QDialogButtonBox(
@@ -73,18 +66,12 @@ class UpdateProgressDialog(QtWidgets.QDialog):
         self.setMinimumWidth(360)
         self.setModal(True)
 
-        t = get_theme()
-        self.setStyleSheet(f"""
-            QDialog {{ background-color: {t['bg']}; }}
-            QLabel {{ color: {t['main']}; }}
-        """)
-
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(12)
 
         self._status_label = QtWidgets.QLabel("正在下载更新包...")
-        self._status_label.setStyleSheet(f"font-size: 14px; color: {t['main']};")
+        self._status_label.setObjectName("DlStatus")
         layout.addWidget(self._status_label)
 
         self._bar = QtWidgets.QProgressBar()
@@ -94,10 +81,11 @@ class UpdateProgressDialog(QtWidgets.QDialog):
         layout.addWidget(self._bar)
 
         self._detail_label = QtWidgets.QLabel("")
-        self._detail_label.setStyleSheet(f"font-size: 12px; color: {t['sec']};")
+        self._detail_label.setObjectName("DlDetail")
         layout.addWidget(self._detail_label)
 
         self._cancel_btn = QtWidgets.QPushButton("取消下载")
+        self._cancel_btn.setObjectName("DangerBtn")
         self._cancel_btn.clicked.connect(self._on_cancel)
         layout.addWidget(self._cancel_btn)
 

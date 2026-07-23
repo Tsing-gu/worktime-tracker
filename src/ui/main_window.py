@@ -34,12 +34,13 @@ from src.services import notification_service
 from src.services.update_service import UpdateService
 from src.utils.paths import resource_path
 from src.core.date_utils import compute_work_date
-from src.ui.theme import get_theme, build_qss
+from src.ui.theme import get_theme
 from src.ui.settings_dialog import SettingsDialog
 from src.ui.calendar_dialog import CalendarHistoryDialog
 from src.ui.leave_dialog import LeaveDialog
 from src.ui.confirm_dialog import ConfirmYesterdayDialog
 from src.ui.update_dialog import UpdateConfirmDialog, UpdateProgressDialog
+from src.ui.edit_start_dialog import EditStartDialog
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -98,7 +99,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.date_label.setAlignment(QtCore.Qt.AlignCenter)
         layout.addWidget(self.date_label)
 
-        # ── 状态行：修改上班 | 上班时间 | 已工作 | 手动下班 ──
+        # ── 状态行：修改上班 | 上班时间 | 已工作(垂直) | 手动下班 ──
         status_box = QtWidgets.QHBoxLayout()
         status_box.setSpacing(12)
 
@@ -113,13 +114,19 @@ class MainWindow(QtWidgets.QMainWindow):
         status_box.addWidget(self.start_label)
         status_box.addStretch()
 
+        worked_vbox = QtWidgets.QVBoxLayout()
+        worked_vbox.setSpacing(0)
+        worked_vbox.setAlignment(QtCore.Qt.AlignCenter)
         self.worked_label = QtWidgets.QLabel("0.0h")
         self.worked_label.setObjectName("WorkedValue")
-        status_box.addWidget(self.worked_label)
+        self.worked_label.setAlignment(QtCore.Qt.AlignCenter)
+        worked_vbox.addWidget(self.worked_label)
 
         self.worked_sub = QtWidgets.QLabel("当前已工作")
         self.worked_sub.setObjectName("WorkedSub")
-        status_box.addWidget(self.worked_sub)
+        self.worked_sub.setAlignment(QtCore.Qt.AlignCenter)
+        worked_vbox.addWidget(self.worked_sub)
+        status_box.addLayout(worked_vbox)
         status_box.addStretch()
 
         self.off_btn = QtWidgets.QPushButton("手动下班")
@@ -161,7 +168,7 @@ class MainWindow(QtWidgets.QMainWindow):
             ("导出", self.on_export),
         ]:
             btn = QtWidgets.QPushButton(label)
-            btn.setFixedHeight(36)
+            btn.setFixedHeight(32)
             btn.clicked.connect(handler)
             btn_box.addWidget(btn)
         layout.addLayout(btn_box)
@@ -195,7 +202,7 @@ class MainWindow(QtWidgets.QMainWindow):
         v.addSpacing(2)
 
         self._card_labels = getattr(self, "_card_labels", {})
-        for key in ["line1", "line2", "line3", "line4"]:
+        for key in ["line1", "line2", "line3"]:
             lbl = QtWidgets.QLabel("")
             lbl.setObjectName("CardLine")
             v.addWidget(lbl)
@@ -417,7 +424,7 @@ class MainWindow(QtWidgets.QMainWindow):
         layout.setSpacing(10)
 
         worked_lbl = QtWidgets.QLabel(f"已工作  {worked:.1f}h")
-        worked_lbl.setStyleSheet(f"font-size: 16px; font-weight: bold; color: {t['primary']};")
+        worked_lbl.setObjectName("TrayWorked")
         layout.addWidget(worked_lbl)
 
         bar = QtWidgets.QProgressBar()
@@ -427,14 +434,14 @@ class MainWindow(QtWidgets.QMainWindow):
 
         pct = int(worked / required * 100) if required > 0 else 0
         pct_lbl = QtWidgets.QLabel(f"{pct}% / {required:.1f}h")
-        pct_lbl.setStyleSheet(f"font-size: 12px; color: {t['sec']};")
+        pct_lbl.setObjectName("TrayPct")
         layout.addWidget(pct_lbl)
 
         layout.addSpacing(4)
 
         if status.end_time:
             remaining_lbl = QtWidgets.QLabel(f"已下班  工时 {worked:.1f}h")
-            remaining_lbl.setStyleSheet(f"font-size: 14px; color: {t['green']};")
+            remaining_lbl.setObjectName("TrayOff")
         else:
             from datetime import datetime as _dt, timedelta as _td
             remaining = max(0, required - worked)
@@ -442,13 +449,13 @@ class MainWindow(QtWidgets.QMainWindow):
             rm = int((remaining - rh) * 60)
             eta = _dt.now() + _td(hours=remaining)
             eta_lbl = QtWidgets.QLabel(f"预计下班 {eta.strftime('%H:%M')}")
-            eta_lbl.setStyleSheet(f"font-size: 13px; color: {t['sec']};")
+            eta_lbl.setObjectName("TrayETA")
             if remaining <= 0:
                 remaining_lbl = QtWidgets.QLabel("已达标，可以下班啦")
-                remaining_lbl.setStyleSheet(f"font-size: 14px; color: {t['green']}; font-weight: bold;")
+                remaining_lbl.setObjectName("TrayReached")
             else:
                 remaining_lbl = QtWidgets.QLabel(f"距下班还有 {rh}小时{rm}分钟")
-                remaining_lbl.setStyleSheet(f"font-size: 14px; color: {t['main']};")
+                remaining_lbl.setObjectName("TrayRemaining")
 
         layout.addWidget(remaining_lbl)
         if not status.end_time:
@@ -658,7 +665,6 @@ class MainWindow(QtWidgets.QMainWindow):
             self._card_labels["本期概览_line1"].setText("休息中")
             self._card_labels["本期概览_line2"].setText("")
             self._card_labels["本期概览_line3"].setText("")
-            self._card_labels["本期概览_line4"].hide()
             bar = self._card_labels["本期概览_bar"]
             bar.setStyleSheet("")
             bar.setMaximum(100)
@@ -671,7 +677,6 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 left = max(0, period.target_hours - period.worked_hours)
                 self._card_labels["本期概览_line3"].setText(f"今天干完就放假啦！还剩{left:.1f}h")
-            self._card_labels["本期概览_line4"].hide()
             bar = self._card_labels["本期概览_bar"]
             self._style_progress_bar(bar, period.worked_hours, period.target_hours)
 
@@ -684,7 +689,6 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             left = max(0, month.target_hours - month.worked_hours)
             self._card_labels["本月概览_line3"].setText(f"今天干完就放假啦！还剩{left:.1f}h")
-        self._card_labels["本月概览_line4"].hide()
         bar2 = self._card_labels["本月概览_bar"]
         self._style_progress_bar(bar2, month.worked_hours, month.target_hours)
 
@@ -696,42 +700,11 @@ class MainWindow(QtWidgets.QMainWindow):
         current_start = status.start_time
         current_str = current_start.strftime("%H:%M") if current_start else ""
 
-        dialog = QtWidgets.QDialog(self)
-        dialog.setWindowTitle("修改上班时间")
-        dialog.setMinimumWidth(280)
-        layout = QtWidgets.QVBoxLayout(dialog)
-
-        layout.addWidget(QtWidgets.QLabel("今日上班时间 (HH:MM)："))
-
-        input_edit = QtWidgets.QLineEdit(current_str)
-        input_edit.setPlaceholderText("09:30")
-        layout.addWidget(input_edit)
-
-        pmset_btn = QtWidgets.QPushButton("从 pmset 读取")
-        layout.addWidget(pmset_btn)
-
-        def _fill_pmset():
-            pmset_time = self.service.get_pmset_start_time()
-            if pmset_time:
-                input_edit.setText(pmset_time.strftime("%H:%M"))
-            else:
-                QtWidgets.QMessageBox.information(dialog, "pmset", "未找到今天的活动记录")
-
-        pmset_btn.clicked.connect(_fill_pmset)
-
-        btn_box = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-        )
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
-        btn_box.accepted.connect(dialog.accept)
-        btn_box.rejected.connect(dialog.reject)
-        layout.addWidget(btn_box)
-
+        dialog = EditStartDialog(current_str, self.service, self)
         if dialog.exec() != QtWidgets.QDialog.Accepted:
             return
 
-        new_str = input_edit.text().strip()
+        new_str = dialog.get_time_str()
         if not new_str:
             return
 
@@ -802,15 +775,17 @@ class MainWindow(QtWidgets.QMainWindow):
             start = date(today.year, today.month, 1)
             end = date(today.year, today.month + 1, 1) - timedelta(days=1)
 
-        choice = QtWidgets.QMessageBox.question(
-            self, "导出",
-            f"导出本月数据（{start} ~ {end}）？\n点击「是」导出 Excel，「否」导出 CSV",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No | QtWidgets.QMessageBox.Cancel,
-        )
+        msg = QtWidgets.QMessageBox(self)
+        msg.setWindowTitle("导出")
+        msg.setText(f"导出本月数据（{start} ~ {end}）")
+        excel_btn = msg.addButton("导出 Excel", QtWidgets.QMessageBox.AcceptRole)
+        csv_btn = msg.addButton("导出 CSV", QtWidgets.QMessageBox.AcceptRole)
+        msg.addButton("取消", QtWidgets.QMessageBox.RejectRole)
+        msg.exec()
         exporter = self.service.get_exporter()
-        if choice == QtWidgets.QMessageBox.Yes:
+        if msg.clickedButton() is excel_btn:
             path = exporter.to_excel(start, end)
-        elif choice == QtWidgets.QMessageBox.No:
+        elif msg.clickedButton() is csv_btn:
             path = exporter.to_csv(start, end)
         else:
             return
