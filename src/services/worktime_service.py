@@ -209,6 +209,7 @@ class WorktimeService:
         off_threshold = float(self.settings_repo.get(SETTING_OFF_THRESHOLD_MINUTES, "60"))
         off_floor = self.settings_repo.get(SETTING_OFF_TIME_FLOOR, "19:00")
         daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+        only_office = self.settings_repo.get(SETTING_ONLY_OFFICE_TIME, "1") == "1"
 
         # 调用 tracker 纯逻辑判定
         result = self.tracker.poll(
@@ -219,6 +220,8 @@ class WorktimeService:
             off_threshold_minutes=off_threshold,
             off_time_floor=off_floor,
             daily_required_hours=daily_required,
+            at_office=at_office,
+            only_office=only_office,
         )
 
         # 根据 event 类型持久化
@@ -253,9 +256,18 @@ class WorktimeService:
             return
 
         start_time = datetime.strptime(daily["start_time"], "%Y-%m-%d %H:%M:%S")
-        off_time = get_last_active_time(idle, now) if idle >= 0 else None
-        if off_time is None:
-            return
+        only_office = self.settings_repo.get(SETTING_ONLY_OFFICE_TIME, "1") == "1"
+
+        if only_office:
+            last_office = self.activity_repo.get_last_active_at_office(prev_date)
+            if last_office and last_office > start_time:
+                off_time = last_office
+            else:
+                return
+        else:
+            off_time = get_last_active_time(idle, now) if idle >= 0 else None
+            if off_time is None:
+                return
 
         # off_time 不应早于 start_time（正常不会，防御性检查）
         if off_time <= start_time:

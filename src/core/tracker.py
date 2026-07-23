@@ -160,6 +160,8 @@ class WorkTracker:
         off_threshold_minutes: float = 60,
         off_time_floor: str = "19:00",
         daily_required_hours: float = 8.0,
+        at_office: bool = True,
+        only_office: bool = False,
     ) -> PollResult:
         """
         执行一次轮询，返回事件结果（不写 DB）。
@@ -219,9 +221,13 @@ class WorkTracker:
             now_total_min = now.hour * 60 + now.minute
             floor_total_min = off_floor_h * 60 + off_floor_m
 
-            # ── 下班判定: 空闲超过阈值 ──
-            if idle > away_threshold:
-                off_time = last_active
+            # ── 下班判定: 空闲超过阈值 或 离开公司网络 ──
+            hid_away = idle > away_threshold
+            office_away = only_office and not at_office
+            if hid_away or office_away:
+                # HID 空闲超阈值 → off_time = 最后活动时间
+                # 离开公司网络 → off_time = 当前时间（HID 仍在活动）
+                off_time = last_active if hid_away else now
                 is_early_morning = now.hour < 6  # 凌晨时段（0:00~6:00，归属前一天工作日）
 
                 # 凌晨时段不对齐 off_time（下班时间就是最后活动时间）

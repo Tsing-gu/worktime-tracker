@@ -563,6 +563,7 @@ class MainWindow(QtWidgets.QMainWindow):
         progress = UpdateProgressDialog(self)
         progress.show()
         self.update_service.reset_cancel()
+        progress.set_cancel_callback(self.update_service.cancel_download)
 
         def on_progress(downloaded, total):
             # 通过 QMetaObject 在主线程更新 UI，避免跨线程操作 Qt 控件崩溃
