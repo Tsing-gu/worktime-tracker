@@ -613,6 +613,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def refresh_ui(self):
         """刷新主界面所有实时数据：今日状态 + 周/月统计卡片 + 托盘图标。"""
+        # ── 日期（跨天后自动更新）──
+        today = compute_work_date(datetime.now())
+        weekday_name = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][today.weekday()]
+        self.date_label.setText(f"{today.year}年{today.month}月{today.day}日 {weekday_name}")
+
         status = self.service.get_today_status()
 
         # ── 上班时间 ──
