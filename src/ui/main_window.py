@@ -688,17 +688,46 @@ class MainWindow(QtWidgets.QMainWindow):
     # ─── 事件处理 ──────────────────────────────────────────
 
     def on_edit_start(self):
-        """修改今日上班时间：弹出输入框，通过 service.edit_start_time() 更新。"""
+        """修改今日上班时间：弹出自定义对话框，支持手动输入或从 pmset 读取。"""
         status = self.service.get_today_status()
         current_start = status.start_time
         current_str = current_start.strftime("%H:%M") if current_start else ""
 
-        new_str, ok = QtWidgets.QInputDialog.getText(
-            self, "修改上班时间",
-            f"今日上班时间 (HH:MM)：\n当前：{current_str or '无记录'}",
-            text=current_str,
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("修改上班时间")
+        dialog.setMinimumWidth(280)
+        layout = QtWidgets.QVBoxLayout(dialog)
+
+        layout.addWidget(QtWidgets.QLabel("今日上班时间 (HH:MM)："))
+
+        input_edit = QtWidgets.QLineEdit(current_str)
+        input_edit.setPlaceholderText("09:30")
+        layout.addWidget(input_edit)
+
+        pmset_btn = QtWidgets.QPushButton("从 pmset 读取")
+        layout.addWidget(pmset_btn)
+
+        def _fill_pmset():
+            pmset_time = self.service.get_pmset_start_time()
+            if pmset_time:
+                input_edit.setText(pmset_time.strftime("%H:%M"))
+            else:
+                QtWidgets.QMessageBox.information(dialog, "pmset", "未找到今天的活动记录")
+
+        pmset_btn.clicked.connect(_fill_pmset)
+
+        btn_box = QtWidgets.QDialogButtonBox(
+            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         )
-        if not ok:
+        btn_box.accepted.connect(dialog.accept)
+        btn_box.rejected.connect(dialog.reject)
+        layout.addWidget(btn_box)
+
+        if dialog.exec() != QtWidgets.QDialog.Accepted:
+            return
+
+        new_str = input_edit.text().strip()
+        if not new_str:
             return
 
         try:

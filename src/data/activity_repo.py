@@ -9,7 +9,7 @@ activity_repo - 活动事件仓储
 """
 
 from datetime import datetime, date, timedelta
-from typing import List
+from typing import List, Optional
 
 from src.data.database import Database
 from src.core.date_utils import compute_work_date
@@ -70,3 +70,47 @@ class ActivityRepository(Database):
         )
         rows = c.fetchall()
         return [dict(r) for r in rows]
+
+    def get_first_active_at_office(self, work_dt: date) -> Optional[datetime]:
+        """获取指定工作日最早一条 active + at_office 的记录时间。
+
+        Args:
+            work_dt: 工作日日期
+
+        Returns:
+            最早的活动时间，或 None
+        """
+        conn = self._get_conn()
+        c = conn.cursor()
+        c.execute(
+            "SELECT timestamp FROM activity_events "
+            "WHERE work_date = ? AND is_active = 1 AND at_office = 1 "
+            "ORDER BY timestamp ASC LIMIT 1",
+            (work_dt.isoformat(),),
+        )
+        row = c.fetchone()
+        if row:
+            return datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S")
+        return None
+
+    def get_first_active(self, work_dt: date) -> Optional[datetime]:
+        """获取指定工作日最早一条 active 的记录时间（不筛选网络）。
+
+        Args:
+            work_dt: 工作日日期
+
+        Returns:
+            最早的活动时间，或 None
+        """
+        conn = self._get_conn()
+        c = conn.cursor()
+        c.execute(
+            "SELECT timestamp FROM activity_events "
+            "WHERE work_date = ? AND is_active = 1 "
+            "ORDER BY timestamp ASC LIMIT 1",
+            (work_dt.isoformat(),),
+        )
+        row = c.fetchone()
+        if row:
+            return datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S")
+        return None

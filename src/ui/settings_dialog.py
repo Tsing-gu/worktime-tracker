@@ -28,6 +28,7 @@ from src.config import (
     SETTING_AUTO_START,
     SETTING_HOLIDAY_AUTO_EXCLUDE,
     SETTING_OFFICE_NETWORK_DOMAIN,
+    SETTING_ONLY_OFFICE_TIME,
 )
 
 
@@ -108,6 +109,11 @@ class SettingsDialog(QtWidgets.QDialog):
         self.holiday_auto.setChecked(settings.get(SETTING_HOLIDAY_AUTO_EXCLUDE, "1") == "1")
         layout.addRow(self.holiday_auto)
 
+        # ── 只记录在公司时间 ──
+        self.only_office = QtWidgets.QCheckBox("只记录在公司时间（需先记录办公网络）")
+        self.only_office.setChecked(settings.get(SETTING_ONLY_OFFICE_TIME, "1") == "1")
+        layout.addRow(self.only_office)
+
         # ── 检查更新按钮 ──
         self.check_update_btn = QtWidgets.QPushButton("立即检查更新")
         self.check_update_btn.clicked.connect(self._on_check_update)
@@ -155,6 +161,7 @@ class SettingsDialog(QtWidgets.QDialog):
             SETTING_NOTIFY_ON_OFF: "1" if self.notify_off.isChecked() else "0",
             SETTING_AUTO_START: "1" if self.auto_start.isChecked() else "0",
             SETTING_HOLIDAY_AUTO_EXCLUDE: "1" if self.holiday_auto.isChecked() else "0",
+            SETTING_ONLY_OFFICE_TIME: "1" if self.only_office.isChecked() else "0",
             SETTING_OFFICE_NETWORK_DOMAIN: self._office_domain,
         }
 
