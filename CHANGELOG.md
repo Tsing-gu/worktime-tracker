@@ -1,3 +1,8 @@
+## [0.8.2] - 2026-07-21
+
+- **修复**: 修复跨天后主页日期不自动刷新：date_label 仅在 __init__ 设置一次，refresh_ui 未更新，导致跨天后日期滞后一天直到重启软件
+- **修复**: 弹窗与手动下班解耦：移除 check_yesterday 中 is_confirmed==1 的跳过逻辑，无论手动/自动下班，次日早上均弹窗确认下班时间
+
 ## [0.8.1] - 2026-07-21
 
 - **修复**: 重构引入的工作日判定回归 bug：`is_workday`/`is_rest_day`/`get_period_range`/`get_previous_workday` 调用时误传 `holiday_auto_exclude`(bool) 作为 `weekly_work_days`(int) 参数，导致只有周一判定为工作日，总工作天数严重偏少

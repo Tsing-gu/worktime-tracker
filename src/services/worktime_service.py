@@ -299,9 +299,6 @@ class WorktimeService:
             return None
 
         daily = self.worktime_repo.get(prev)
-        if daily and daily.get("is_confirmed") == 1:
-            self._checked_yesterday = True
-            return None
 
         if daily and daily.get("start_time"):
             self._checked_yesterday = True
