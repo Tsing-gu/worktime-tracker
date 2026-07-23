@@ -42,6 +42,7 @@ def get_theme() -> dict:
             "green": "#30D158", "red": "#FF453A", "blue": "#64D2FF",
             "track": "#4A4A4C", "div": "#3A3A3C",
             "btn_bg": "#0A84FF", "btn_text": "#FFFFFF", "btn_border": "transparent",
+            "btn_hover": "#0066CC", "btn_pressed": "#0052A3",
             "input_bg": "#3A3A3C",
         }
     return {
@@ -51,6 +52,7 @@ def get_theme() -> dict:
         "green": "#30D158", "red": "#FF453A", "blue": "#64D2FF",
         "track": "#E5E5EA", "div": "#E5E5EA",
         "btn_bg": "#0A84FF", "btn_text": "#FFFFFF", "btn_border": "transparent",
+        "btn_hover": "#0066CC", "btn_pressed": "#0052A3",
         "input_bg": "#F5F5F7",
     }
 
@@ -192,10 +194,10 @@ def build_qss(t: dict) -> str:
         min-height: 20px;
     }}
     QPushButton#PrimaryBtn:hover {{
-        background-color: #0066CC;
+        background-color: {t['btn_hover']};
     }}
     QPushButton#PrimaryBtn:pressed {{
-        background-color: #0052A3;
+        background-color: {t['btn_pressed']};
     }}
     QPushButton#SecondaryBtn {{
         background-color: {t['card']};
@@ -372,6 +374,89 @@ def build_qss(t: dict) -> str:
     }}
     QFrame#DayCell:hover {{
         border-color: {t['primary']};
+    }}
+    QFrame#DayCell QLabel {{
+        font-size: 14px;
+    }}
+    QLabel#DayCellInfo {{
+        font-size: 11px;
+    }}
+    QLabel#TrayWorked {{
+        font-size: 16px;
+        font-weight: bold;
+        color: {t['primary']};
+    }}
+    QLabel#TrayPct {{
+        font-size: 12px;
+        color: {t['sec']};
+    }}
+    QLabel#TrayOff {{
+        font-size: 14px;
+        color: {t['green']};
+    }}
+    QLabel#TrayETA {{
+        font-size: 13px;
+        color: {t['sec']};
+    }}
+    QLabel#TrayReached {{
+        font-size: 14px;
+        color: {t['green']};
+        font-weight: bold;
+    }}
+    QLabel#TrayRemaining {{
+        font-size: 14px;
+        color: {t['main']};
+    }}
+    QLabel#UpdateTitle {{
+        font-size: 18px;
+        font-weight: bold;
+        color: {t['primary']};
+    }}
+    QLabel#UpdateCur {{
+        font-size: 12px;
+        color: {t['sec']};
+    }}
+    QLabel#UpdateDesc {{
+        font-size: 13px;
+        color: {t['main']};
+    }}
+    QLabel#DlStatus {{
+        font-size: 14px;
+        color: {t['main']};
+    }}
+    QLabel#DlDetail {{
+        font-size: 12px;
+        color: {t['sec']};
+    }}
+    QLabel#VersionLabel {{
+        font-size: 12px;
+        color: {t['sec']};
+    }}
+    QLabel#OfficeDomain {{
+        color: {t['sec']};
+    }}
+    QPushButton#DangerBtn {{
+        background-color: {t['card']};
+        color: {t['red']};
+        border: 1px solid {t['red']};
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 6px 12px;
+        min-height: 20px;
+    }}
+    QPushButton#DangerBtn:hover {{
+        background-color: {t['card_alt']};
+    }}
+    QPushButton#DangerBtn:pressed {{
+        background-color: {t['stroke']};
+    }}
+    QToolTip {{
+        background-color: {t['card']};
+        color: {t['main']};
+        border: 1px solid {t['stroke']};
+        border-radius: 4px;
+        padding: 4px 8px;
     }}
     QMessageBox, QInputDialog {{
         background-color: {t['bg']};
