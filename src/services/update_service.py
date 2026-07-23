@@ -87,10 +87,14 @@ class UpdateService:
 
     def _fetch_feed(self) -> Optional[str]:
         """拉取 appcast.xml，主 URL 失败则用 jsDelivr 备用。"""
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
         for url in (UPDATE_FEED_URL, UPDATE_FEED_FALLBACK_URL):
             try:
                 req = Request(url, headers={"User-Agent": "worktime-tracker"})
-                with urlopen(req, timeout=15) as resp:
+                with urlopen(req, timeout=15, context=ctx) as resp:
                     return resp.read().decode("utf-8")
             except Exception as e:
                 print(f"[Update] 拉取失败 {url}：{e}")
