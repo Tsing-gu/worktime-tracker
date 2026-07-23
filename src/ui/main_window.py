@@ -545,13 +545,13 @@ class MainWindow(QtWidgets.QMainWindow):
         elif result.event == "back":
             self._confirm_resume()
 
-        # ── 次日确认 ──
+        # ── 先刷新 UI（含日期），确保跨天后界面立即更新 ──
+        self.refresh_ui()
+
+        # ── 再弹次日确认/更新检查（可能阻塞，放最后）──
         if not self.checked_yesterday:
             self._check_yesterday_confirm()
             self._check_update_after_confirm()
-
-        # ── 刷新 UI ──
-        self.refresh_ui()
 
     def _confirm_resume(self):
         """
