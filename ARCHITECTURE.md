@@ -8,7 +8,7 @@
 | `core/` | 纯业务逻辑（不直接操作 DB） | `WorktimeCalculator` / `HolidayService` / `WorkTracker` + `date_utils` |
 | `services/` | 服务编排（连接 core 与 data） | `WorktimeService` / `WorktimeExporter` / `UpdateService` |
 | `ui/` | 界面层（只调 services，禁止直接 import data） | `MainWindow` / `Theme` / 各弹窗 |
-| `utils/` | 工具层（无状态纯函数） | `SystemBridge` / `paths` / `text` / `net` / `version` |
+| `utils/` | 工具层（无状态纯函数） | `system`（HID/网络/pmset） / `paths` / `text` / `net` / `version` |
 
 ## 分层规则
 
@@ -39,7 +39,8 @@ graph TD
   WorktimeService --> DailyWorktimeRepository
   WorktimeService --> HolidayRepository
   WorktimeService --> WorktimeExporter
-  WorkTracker --> SystemBridge
+  WorktimeService --> utils/system
+  WorkTracker --> utils/system
   HolidayService --> HolidayRepository
   WorktimeExporter --> DailyWorktimeRepository
   UpdateService --> SettingsRepository
@@ -51,17 +52,19 @@ graph TD
 
 | 调用方 | 被调用方 | 接口方法 |
 |---|---|---|
-| `MainWindow` | `WorktimeService` | `init` / `poll_and_record` / `get_today_status` / `get_period_stats` / `get_month_stats` / `manual_off` / `resume_after_off` / `check_yesterday` / `get_settings` / `update_settings` / `get_required_hours` / `get_daily_worktime` / `get_all_holidays` / `get_date_range_worktime` / `get_exporter` / `mark_leave` / `manual_record` / `edit_start_time` / `clear_record` |
+| `MainWindow` | `WorktimeService` | `init` / `poll_and_record` / `get_today_status` / `get_period_stats` / `get_month_stats` / `manual_off` / `resume_after_off` / `check_yesterday` / `get_settings` / `update_settings` / `get_required_hours` / `get_daily_worktime` / `get_all_holidays` / `get_date_range_worktime` / `get_exporter` / `mark_leave` / `manual_record` / `edit_start_time` / `get_pmset_start_time` / `clear_record` |
 | `MainWindow` | `UpdateService` | `check_for_updates` / `download_update` / `verify_update` / `install_and_restart` |
 | `WorktimeService` | `WorktimeCalculator` | `period_stats` / `month_stats` / `week_stats` / `today_status` / `detect_anomalies` / `previous_workday` |
 | `WorktimeService` | `WorkTracker` | `poll` / `check_start_recorded` / `manual_off_work` / `resume_after_off` / `reset_for_new_day` / `is_started` / `is_off` |
+| `WorktimeService` | `WorktimeService` | `ensure_start` / `get_pmset_start_time` / `_backfill_off_time` / `edit_start_time` |
 | `WorktimeService` | `HolidayService` | `ensure_loaded` / `is_holiday` / `is_adjusted_workday` / `get_all` |
 | `WorktimeService` | `SettingsRepository` | `get` / `set` / `get_all` |
-| `WorktimeService` | `ActivityRepository` | `record` / `cleanup` / `get_today` |
+| `WorktimeService` | `ActivityRepository` | `record` / `cleanup` / `get_today` / `get_first_active` / `get_first_active_at_office` |
 | `WorktimeService` | `DailyWorktimeRepository` | `get` / `upsert` / `get_range` / `delete` / `clear_end_time` |
 | `WorktimeService` | `HolidayRepository` | `get` / `get_all` / `save_year` |
 | `WorktimeService` | `WorktimeExporter` | `to_csv` / `to_excel` |
 | `WorkTracker` | `utils/system` | `get_hid_idle_seconds` / `is_currently_active` / `get_last_active_time` |
+| `WorktimeService` | `utils/system` | `get_first_active_from_pmset` / `get_network_status` / `get_hid_idle_seconds` / `is_currently_active` |
 | `HolidayService` | `HolidayRepository` | `get` / `get_all` / `save_year` |
 | `WorktimeExporter` | `DailyWorktimeRepository` | `get_range` |
 | `UpdateService` | `SettingsRepository` | `get` / `set` |
