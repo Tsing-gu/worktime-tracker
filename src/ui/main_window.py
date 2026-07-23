@@ -498,6 +498,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # ── 次日确认 ──
         if not self.checked_yesterday:
             self._check_yesterday_confirm()
+            self._check_update_after_confirm()
 
         # ── 刷新 UI ──
         self.refresh_ui()
@@ -539,6 +540,17 @@ class MainWindow(QtWidgets.QMainWindow):
             QtWidgets.QMessageBox.warning(self, "检查更新", f"检查失败：{e}")
         finally:
             self._update_checking = False
+
+    def _check_update_after_confirm(self):
+        """次日确认完成后自动检查更新（每天一次），有新版则弹更新确认窗。"""
+        self.checked_yesterday = True
+        try:
+            info = self.update_service.check_for_updates()
+            self.update_service.mark_checked()
+            if info:
+                self._show_update_confirm(info)
+        except Exception as e:
+            print(f"[Update] 自动检查失败：{e}")
 
     def _show_update_confirm(self, info):
         """弹出更新确认窗。"""
