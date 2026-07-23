@@ -26,7 +26,6 @@ from src.utils.system import (
     get_hid_idle_seconds,
     is_currently_active,
     get_last_active_time,
-    get_first_active_from_pmset,
 )
 from src.config import ACTIVE_THRESHOLD_SECONDS
 
@@ -103,17 +102,15 @@ class WorkTracker:
                               existing_start: Optional[datetime] = None,
                               existing_source: str = None,
                               existing_end_time: Optional[datetime] = None,
-                              pmset_start: Optional[datetime] = None) -> Optional[datetime]:
+                              first_active: Optional[datetime] = None) -> Optional[datetime]:
         """
         校验或回溯当天上班时间（纯逻辑，不写 DB）。
 
         判定优先级:
             1. 已有手动记录 → 不覆盖
-            2. 已有自动记录 + 未下班 + pmset 有更早的记录 → 修正
-            3. 已有自动记录 + 已下班 → 不覆盖
-            4. 无 DB 记录 + pmset 日志有 UserIsActive → 回填
-            5. 无 DB 记录 + 当前 HID 活跃 → 回推最后一次活动时间
-            6. 以上都不满足 → 返回 None（暂不记录，等下一次轮询）
+            2. 已有自动记录 → 不覆盖
+            3. 无记录 + activity_events 有活跃记录 → 取最早活跃时间回填
+            4. 以上都不满足 → 返回 None（暂不记录，等下一次轮询）
 
         Args:
             now:              当前时间
@@ -121,7 +118,7 @@ class WorkTracker:
             existing_start:   DB 中已有的上班时间
             existing_source:  DB 中已有记录来源 'auto'/'manual'
             existing_end_time: DB 中已有下班时间
-            pmset_start:      pmset 日志回溯到的上班时间
+            first_active:     activity_events 中最早活跃记录的时间
 
         Returns:
             应记录的上班时间（需要写入 DB），或 None 表示无需操作
@@ -131,40 +128,25 @@ class WorkTracker:
 
         floor_h, floor_m = map(int, work_start_floor.split(":"))
 
-        # 优先级 1-3: 已有上班记录
+        # 优先级 1-2: 已有上班记录
         if existing_start:
-            # 手动记录不覆盖
             if existing_source == "manual":
                 self._start_recorded = True
                 return None
 
-            # 自动记录 + 未下班 + pmset 有更早的记录 → 修正
-            if existing_source == "auto" and not existing_end_time and pmset_start:
-                if (existing_start - pmset_start).total_seconds() > 300:
-                    self._start_recorded = True
-                    return pmset_start  # 返回更准确的上班时间
-
-            # 已有自动记录 + 已下班 → 不覆盖
             self._start_recorded = True
             return None
 
-        # 优先级 4: 无上班记录，尝试从 pmset 回溯
-        if pmset_start:
-            self._start_recorded = True
-            return pmset_start
-
-        # 优先级 5: 无 pmset 记录，尝试从当前 HID 活动回推
-        idle = get_hid_idle_seconds()
-        if is_currently_active(idle):
-            last_active = get_last_active_time(idle, now)
-            start_time = last_active if last_active else now
-            # 如果回推时间早于上班检测起始时间，对齐到起始时间
+        # 优先级 3: 无记录，从 activity_events 取最早活跃时间
+        if first_active:
+            start_time = first_active
+            # 如果早于上班检测起始时间，对齐到起始时间
             if start_time.hour < floor_h or (start_time.hour == floor_h and start_time.minute < floor_m):
                 start_time = start_time.replace(hour=floor_h, minute=floor_m, second=0, microsecond=0)
             self._start_recorded = True
             return start_time
 
-        # 优先级 6: 以上都不满足 → 静默等待
+        # 优先级 4: 以上都不满足 → 静默等待
         return None
 
     # ─── 轮询主逻辑 ────────────────────────────────────────

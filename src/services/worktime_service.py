@@ -33,6 +33,7 @@ from src.config import (
     SETTING_NOTIFY_ON_OFF,
     SETTING_HOLIDAY_AUTO_EXCLUDE,
     SETTING_OFFICE_NETWORK_DOMAIN,
+    SETTING_ONLY_OFFICE_TIME,
     LEAVE_TYPES,
     HOLIDAY_API_URLS,
     HOLIDAY_CACHE_FILE,
@@ -95,19 +96,24 @@ class WorktimeService:
         today = date.today()
         self.holiday_service.ensure_loaded(today.year)
         self.current_work_date = compute_work_date(datetime.now())
-        self.ensure_start()
+        office_domain = self.settings_repo.get(SETTING_OFFICE_NETWORK_DOMAIN, "")
+        at_office = get_network_status(office_domain)["at_office"]
+        self.ensure_start(at_office=at_office)
 
-    def ensure_start(self):
+    def ensure_start(self, at_office: bool = True):
         """回溯或校验当天上班时间。
 
         统一入口，通过 tracker.check_start_recorded() 按优先级判定:
-            1. DB 已有手动记录 → 不覆盖
-            2. DB 已有自动记录 + pmset 更早 → 修正
-            3. DB 已有自动记录 + 已下班 → 不覆盖
-            4. 无 DB 记录 + pmset 有记录 → 回填
-            5. 无 DB 记录 + 当前 HID 活跃 → 回推
-            6. 以上都不满足 → 静默等待下一次轮询
+            1. 已有手动记录 → 不覆盖
+            2. 已有自动记录 → 不覆盖
+            3. 无记录 + activity_events 有活跃记录 → 取最早活跃时间回填
+            4. 以上都不满足 → 静默等待下一次轮询
+
+        Args:
+            at_office: 当前是否在公司网络（仅用于决定是否查 at_office 筛选条件）
         """
+        only_office = self.settings_repo.get(SETTING_ONLY_OFFICE_TIME, "1") == "1"
+
         now = datetime.now()
         work_date = compute_work_date(now)
         daily = self.worktime_repo.get(work_date)
@@ -123,7 +129,11 @@ class WorktimeService:
             if daily.get("end_time"):
                 existing_end = datetime.strptime(daily["end_time"], "%Y-%m-%d %H:%M:%S")
 
-        pmset_start = get_first_active_from_pmset(work_date, work_start_floor)
+        # 从 activity_events 查最早活跃记录
+        if only_office:
+            first_active = self.activity_repo.get_first_active_at_office(work_date)
+        else:
+            first_active = self.activity_repo.get_first_active(work_date)
 
         start_to_record = self.tracker.check_start_recorded(
             now=now,
@@ -131,7 +141,7 @@ class WorktimeService:
             existing_start=existing_start,
             existing_source=existing_source,
             existing_end_time=existing_end,
-            pmset_start=pmset_start,
+            first_active=first_active,
         )
 
         if start_to_record:
@@ -190,7 +200,7 @@ class WorktimeService:
 
         # 如果 DB 中无上班记录且 tracker 未记录上班 → 调用 ensure_start 补录
         if not start_time and not self.tracker.is_started():
-            self.ensure_start()
+            self.ensure_start(at_office=at_office)
             daily = self.worktime_repo.get(work_date)
             if daily and daily.get("start_time"):
                 start_time = datetime.strptime(daily["start_time"], "%Y-%m-%d %H:%M:%S")
@@ -415,6 +425,12 @@ class WorktimeService:
             raise ValueError(f"时间格式不正确：{e}")
 
     # ─── 修改上班时间 ──────────────────────────────────────
+
+    def get_pmset_start_time(self) -> Optional[datetime]:
+        """从 pmset 日志读取今天最早的 UserIsActive 事件时间。"""
+        work_date = compute_work_date(datetime.now())
+        work_start_floor = self.settings_repo.get(SETTING_WORK_START_FLOOR, "06:00")
+        return get_first_active_from_pmset(work_date, work_start_floor)
 
     def edit_start_time(self, start_str: str) -> datetime:
         """修改今日上班时间。"""
