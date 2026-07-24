@@ -94,6 +94,35 @@ class MainWindow(QtWidgets.QMainWindow):
         self.holiday_loaded.connect(self._on_holiday_loaded)
         self.export_finished.connect(self._on_export_finished)
 
+    # ─── QMessageBox helper ────────────────────────────────
+
+    @staticmethod
+    def _msg_box(icon, parent, title, text, buttons=QtWidgets.QMessageBox.Ok):
+        """封装 QMessageBox，禁用 autoDefault + NoFocus，修复按钮需点两次。"""
+        box = QtWidgets.QMessageBox(icon, title, text, buttons, parent)
+        for btn in box.buttons():
+            btn.setAutoDefault(False)
+            btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        return box.exec()
+
+    @staticmethod
+    def _msg_information(parent, title, text):
+        return MainWindow._msg_box(
+            QtWidgets.QMessageBox.Information, parent, title, text,
+            QtWidgets.QMessageBox.Ok)
+
+    @staticmethod
+    def _msg_warning(parent, title, text):
+        return MainWindow._msg_box(
+            QtWidgets.QMessageBox.Warning, parent, title, text,
+            QtWidgets.QMessageBox.Ok)
+
+    @staticmethod
+    def _msg_question(parent, title, text):
+        return MainWindow._msg_box(
+            QtWidgets.QMessageBox.Question, parent, title, text,
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+
     # ─── UI 初始化 ─────────────────────────────────────────
 
     def _init_ui(self):
@@ -605,13 +634,11 @@ class MainWindow(QtWidgets.QMainWindow):
         确认 → 调用 service.resume_after_off() 清除下班记录，恢复"工作中"状态
         取消 → 保持下班状态不变
         """
-        reply = QtWidgets.QMessageBox.question(
+        reply = self._msg_question(
             self, "恢复计时",
             "检测到您已回来继续工作，是否恢复计时？\n\n"
             "确认 → 清除下班记录，继续追踪工时\n"
-            "取消 → 保持当前下班状态",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-        )
+            "取消 → 保持当前下班状态")
         if reply == QtWidgets.QMessageBox.Yes:
             self.service.resume_after_off()
             self.refresh_ui()
@@ -656,11 +683,11 @@ class MainWindow(QtWidgets.QMainWindow):
         # 手动检查路径
         self._update_checking = False
         if info == "error":
-            QtWidgets.QMessageBox.warning(self, "检查更新", "检查失败，请稍后重试")
+            self._msg_warning(self, "检查更新", "检查失败，请稍后重试")
         elif info:
             self._show_update_confirm(info)
         else:
-            QtWidgets.QMessageBox.information(self, "检查更新", "已是最新版本")
+            self._msg_information(self, "检查更新", "已是最新版本")
 
     def _check_update_after_confirm(self):
         """次日确认完成后自动检查更新（每天一次），子线程执行不阻塞 UI。
@@ -845,36 +872,33 @@ class MainWindow(QtWidgets.QMainWindow):
         try:
             new_start = self.service.edit_start_time(new_str)
             self.refresh_ui()
-            QtWidgets.QMessageBox.information(self, "已修改", f"上班时间已更新为 {new_start.strftime('%H:%M')}")
+            self._msg_information(self, "已修改", f"上班时间已更新为 {new_start.strftime('%H:%M')}")
         except ValueError as e:
-            QtWidgets.QMessageBox.warning(self, "格式错误", str(e))
+            self._msg_warning(self, "格式错误", str(e))
 
     def on_manual_off(self):
         """手动下班：弹窗确认后通过 service.manual_off() 记录。"""
         status = self.service.get_today_status()
         if not status.has_started:
-            QtWidgets.QMessageBox.information(self, "提示", "今天还没有上班记录，无法下班")
+            self._msg_information(self, "提示", "今天还没有上班记录，无法下班")
             return
         if status.end_time:
-            QtWidgets.QMessageBox.information(self, "提示", "今天已经下班了")
+            self._msg_information(self, "提示", "今天已经下班了")
             return
 
-        reply = QtWidgets.QMessageBox.question(
+        reply = self._msg_question(
             self, "确认下班",
             f"当前时间：{datetime.now().strftime('%H:%M')}\n"
             f"今日已工作：{status.worked_hours:.1f} 小时"
             f"{'  已达标' if status.is_target_reached else ''}\n\n"
-            f"确认以当前时间记录下班？",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-        )
+            f"确认以当前时间记录下班？")
         if reply == QtWidgets.QMessageBox.Yes:
             result = self.service.manual_off()
             if result.event == "manual_off":
-                QtWidgets.QMessageBox.information(
+                self._msg_information(
                     self, "已下班",
                     f"下班时间：{result.off_time.strftime('%H:%M')}\n"
-                    f"今日工时：{result.worked_hours:.2f} 小时",
-                )
+                    f"今日工时：{result.worked_hours:.2f} 小时")
                 self.refresh_ui()
 
     def on_settings(self):
@@ -953,9 +977,9 @@ class MainWindow(QtWidgets.QMainWindow):
     def _on_export_finished(self, result, success):
         """导出完成后在主线程弹提示。"""
         if success:
-            QtWidgets.QMessageBox.information(self, "导出成功", f"文件已保存到：\n{result}")
+            self._msg_information(self, "导出成功", f"文件已保存到：\n{result}")
         else:
-            QtWidgets.QMessageBox.warning(self, "导出失败", result)
+            self._msg_warning(self, "导出失败", result)
 
     # ─── 窗口关闭与退出 ────────────────────────────────────
 

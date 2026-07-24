@@ -1,3 +1,7 @@
+## [0.14.1] - 2026-07-24
+
+- **修复**: 修复 QMessageBox 标准按钮需点两次：统一封装 _msg_box helper 禁用 autoDefault + NoFocus
+
 ## [0.14.0] - 2026-07-24
 
 - **新增**: 主线程阻塞全面解耦：轮询/更新检查/通知/pmset/Holiday API/Excel导出全部子线程化，主线程永不阻塞
