@@ -525,7 +525,13 @@ class MainWindow(QtWidgets.QMainWindow):
             2. 根据返回事件发送通知（下班/达标/回来）
             3. 检查次日确认弹窗
             4. 刷新 UI
+
+        若有模态对话框（修改上班/手动下班/消息框等）打开，跳过本次轮询，
+        避免 poll_and_record 中的 subprocess.run 阻塞主线程导致按钮无响应。
         """
+        if QtWidgets.QApplication.activeModalWidget() is not None:
+            return
+
         result = self.service.poll_and_record()
 
         # ── 下班通知 ──
