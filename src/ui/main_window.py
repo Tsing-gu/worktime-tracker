@@ -71,7 +71,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # 唯一的业务层入口
         self.service = WorktimeService()
         self.update_service = UpdateService(self.service.settings_repo)
-        self.checked_yesterday = False
         self._tray_popup_menu = None  # 当前时长卡菜单
         self._update_checking = False  # 防止重复检查
 
@@ -549,7 +548,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.refresh_ui()
 
         # ── 再弹次日确认/更新检查（可能阻塞，放最后）──
-        if not self.checked_yesterday:
+        if self.service.should_check_yesterday():
             self._check_yesterday_confirm()
             self._check_update_after_confirm()
 
@@ -593,7 +592,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _check_update_after_confirm(self):
         """次日确认完成后自动检查更新（每天一次），有新版则弹更新确认窗。"""
-        self.checked_yesterday = True
+        self.service.mark_yesterday_checked()
         try:
             info = self.update_service.check_for_updates()
             self.update_service.mark_checked()
@@ -673,6 +672,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.service.confirm_yesterday(prev, end_time)
         else:
             self.service.skip_yesterday(prev)
+        self.service.mark_yesterday_checked()
 
     # ─── UI 刷新 ──────────────────────────────────────────
 

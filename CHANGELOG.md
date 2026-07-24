@@ -1,3 +1,8 @@
+## [0.13.3] - 2026-07-24
+
+- **修复**: 修复次日确认弹窗和自动更新检查被锁死不弹：check_yesterday 不再内部置位，跨天时重置 _checked_yesterday，统一用 service.should_check_yesterday() 替代 UI 层 checked_yesterday 标志
+- **修复**: 修复跨天后主页日期被次日确认弹窗阻塞不刷新：refresh_ui 移到弹窗调用之前
+
 ## [0.13.2] - 2026-07-24
 
 - **修复**: 修复跨天后主页日期被次日确认弹窗阻塞不刷新：调整 on_tick 执行顺序，refresh_ui 移到弹窗调用之前，确保跨天后日期立即更新
