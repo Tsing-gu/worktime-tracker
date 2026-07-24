@@ -1,3 +1,7 @@
+## [0.13.5] - 2026-07-24
+
+- **修复**: 修复日历日期格 hover 无效果：set_status 本地样式表覆盖了 app 级 QSS 的 :hover 规则，改为在本地样式表中显式写入 :hover 规则；补充 WA_Hover 属性；"今天"边框标记从字符串拼接改为 set_status 的 is_today 参数
+
 ## [0.13.4] - 2026-07-24
 
 - **修复**: 修复对话框按钮需点两次才生效：所有 QDialogButtonBox 按钮统一设 NoFocus + setAutoDefault(False)，消除 macOS autoDefault 首次点击只获取焦点的行为
