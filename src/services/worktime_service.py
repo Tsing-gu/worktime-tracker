@@ -168,6 +168,7 @@ class WorktimeService:
             self._backfill_off_time(self.current_work_date, now, idle)
             self.tracker.reset_for_new_day()
             self.current_work_date = new_work_date
+            self._checked_yesterday = False
 
         active = is_currently_active(idle)
 
@@ -366,26 +367,31 @@ class WorktimeService:
     # ─── 次日确认 ──────────────────────────────────────────
 
     def check_yesterday(self) -> Optional[tuple]:
-        """检查是否需要弹出次日确认提醒。"""
+        """检查是否需要弹出次日确认提醒。
+
+        注意：本方法不再内部修改 _checked_yesterday 状态，
+        由调用方在确认/跳过后调用 mark_yesterday_checked() 显式标记。
+        """
         today = compute_work_date(datetime.now())
         prev = self._get_calculator().previous_workday(today)
 
         if prev is None:
-            self._checked_yesterday = True
             return None
 
         daily = self.worktime_repo.get(prev)
 
         if daily and daily.get("start_time"):
-            self._checked_yesterday = True
             return (prev, daily)
         else:
-            self._checked_yesterday = True
             return None
 
     def should_check_yesterday(self) -> bool:
         """是否需要检查次日确认。"""
         return not self._checked_yesterday
+
+    def mark_yesterday_checked(self):
+        """显式标记次日确认已完成。"""
+        self._checked_yesterday = True
 
     def confirm_yesterday(self, prev_date: date, end_time: datetime):
         """确认前一天的下班时间并持久化。"""
