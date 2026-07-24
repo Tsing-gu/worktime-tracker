@@ -12,6 +12,17 @@
       4. length 为 DMG 文件字节数（stat -f%z 工时计算器.dmg）
     -->
     <item>
+      <title>版本 0.13.9</title>
+      <pubDate>Fri, 24 Jul 2026 08:00:00 +0800</pubDate>
+      <sparkle:version>30</sparkle:version>
+      <sparkle:shortVersionString>0.13.9</sparkle:shortVersionString>
+      <description><![CDATA[修复修改上班弹窗确认按钮卡住(on_tick定时器在模态对话框期间阻塞主线程)；修复取消更新后弹窗不关闭(下载read阻塞I/O无法被取消标志中断)]]></description>
+      <enclosure
+        url="https://github.com/Tsing-gu/worktime-tracker/releases/download/v0.13.9/WorkTimeTracker.dmg"
+        length="92951239"
+        sparkle:edSignature=""/>
+    </item>
+    <item>
       <title>版本 0.13.7</title>
       <pubDate>Fri, 24 Jul 2026 07:00:00 +0800</pubDate>
       <sparkle:version>29</sparkle:version>
