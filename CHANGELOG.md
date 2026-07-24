@@ -1,3 +1,9 @@
+## [0.13.4] - 2026-07-24
+
+- **修复**: 修复对话框按钮需点两次才生效：所有 QDialogButtonBox 按钮统一设 NoFocus + setAutoDefault(False)，消除 macOS autoDefault 首次点击只获取焦点的行为
+- **修复**: 修复按钮点击后失去 hover/click 效果：theme.py 为 #PrimaryBtn/#SecondaryBtn/#DangerBtn 补充 :focus 样式（与 :hover 一致）
+- **修复**: 删除 settings_dialog 中重复创建的孤儿 QDialogButtonBox
+
 ## [0.13.3] - 2026-07-24
 
 - **修复**: 修复次日确认弹窗和自动更新检查被锁死不弹：check_yesterday 不再内部置位，跨天时重置 _checked_yesterday，统一用 service.should_check_yesterday() 替代 UI 层 checked_yesterday 标志

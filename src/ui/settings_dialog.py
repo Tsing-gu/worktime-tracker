@@ -158,17 +158,12 @@ class SettingsDialog(QtWidgets.QDialog):
         )
         btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
         btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setAutoDefault(False)
         btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
         btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setAutoDefault(False)
         self.check_update_btn.setFocusPolicy(QtCore.Qt.NoFocus)
         self.record_office_btn.setFocusPolicy(QtCore.Qt.NoFocus)
-
-        # ── 确认/取消按钮 ──
-        btn_box = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-        )
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
         btn_box.accepted.connect(self.accept)
         btn_box.rejected.connect(self.reject)
         main_layout.addWidget(btn_box)

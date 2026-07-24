@@ -45,7 +45,11 @@ class EditStartDialog(QtWidgets.QDialog):
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         )
         btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
+        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setAutoDefault(False)
         btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
+        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setAutoDefault(False)
         btn_box.accepted.connect(self.accept)
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)

@@ -238,6 +238,9 @@ def build_qss(t: dict) -> str:
     QPushButton#PrimaryBtn:hover {{
         background-color: {t['btn_hover']};
     }}
+    QPushButton#PrimaryBtn:focus {{
+        background-color: {t['btn_hover']};
+    }}
     QPushButton#PrimaryBtn:pressed {{
         background-color: {t['btn_pressed']};
     }}
@@ -253,6 +256,10 @@ def build_qss(t: dict) -> str:
     }}
     QPushButton#SecondaryBtn:hover {{
         background-color: {t['card_alt']};
+    }}
+    QPushButton#SecondaryBtn:focus {{
+        background-color: {t['card_alt']};
+        border-color: {t['primary']};
     }}
     QPushButton#SecondaryBtn:pressed {{
         background-color: {t['stroke']};
@@ -516,6 +523,10 @@ def build_qss(t: dict) -> str:
     }}
     QPushButton#DangerBtn:hover {{
         background-color: {t['card_alt']};
+    }}
+    QPushButton#DangerBtn:focus {{
+        background-color: {t['card_alt']};
+        border-color: {t['red']};
     }}
     QPushButton#DangerBtn:pressed {{
         background-color: {t['stroke']};
