@@ -155,13 +155,14 @@ class UpdateService:
         """下载 DMG 到临时目录。"""
         try:
             import ssl
+            import socket
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
 
             url = encode_url(dmg_url)
             req = Request(url, headers={"User-Agent": "worktime-tracker"})
-            with urlopen(req, timeout=300, context=ctx) as resp:
+            with urlopen(req, timeout=10, context=ctx) as resp:
                 total = int(resp.headers.get("Content-Length", 0))
                 dmg_path = os.path.join(self._temp_dir, "worktime_update.dmg")
                 downloaded = 0
@@ -175,7 +176,17 @@ class UpdateService:
                             except OSError:
                                 pass
                             return None
-                        buf = resp.read(chunk)
+                        try:
+                            buf = resp.read(chunk)
+                        except socket.timeout:
+                            if self._cancelled:
+                                f.close()
+                                try:
+                                    os.remove(dmg_path)
+                                except OSError:
+                                    pass
+                                return None
+                            continue
                         if not buf:
                             break
                         f.write(buf)
@@ -184,6 +195,8 @@ class UpdateService:
                             progress_callback(downloaded, total)
             return dmg_path
         except Exception as e:
+            if self._cancelled:
+                return None
             print(f"[Update] 下载失败：{e}")
             return None
 
