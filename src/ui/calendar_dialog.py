@@ -48,6 +48,7 @@ class DayCell(QtWidgets.QFrame):
         self.work_date = work_date
         self.setObjectName("DayCell")
         self.setFixedSize(100, 84)
+        self.setAttribute(QtCore.Qt.WA_Hover)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(8, 6, 8, 6)
@@ -71,17 +72,23 @@ class DayCell(QtWidgets.QFrame):
         # 启用右键菜单
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
-    def set_status(self, text: str, bg_color: str, fg_color: str = ""):
+    def set_status(self, text: str, bg_color: str, fg_color: str = "", is_today: bool = False):
         """
         设置日期格的显示文本和背景色。
 
         Args:
-            text:     显示文本（工时/状态）
-            bg_color: 背景色（CSS 颜色值）
-            fg_color: 前景色（可选，默认不改变）
+            text:      显示文本（工时/状态）
+            bg_color:  背景色（CSS 颜色值）
+            fg_color:  前景色（可选，默认不改变）
+            is_today:  是否为今天（加蓝色边框高亮）
         """
+        from src.ui.theme import get_theme
+        t = get_theme()
+        primary = t["primary"]
         self.info_label.setText(text)
-        style = f"QFrame#DayCell {{ background-color: {bg_color}; border-radius: 8px; border: 1px solid transparent; }}"
+        border = f"2px solid {primary}" if is_today else "1px solid transparent"
+        style = f"QFrame#DayCell {{ background-color: {bg_color}; border-radius: 8px; border: {border}; }}"
+        style += f"QFrame#DayCell:hover {{ background-color: {bg_color}; border-radius: 8px; border: 2px solid {primary}; }}"
         if fg_color:
             style += f" QLabel {{ color: {fg_color}; }}"
         self.setStyleSheet(style)
@@ -291,18 +298,20 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
             cell = DayCell(d.day, d, self.grid_container)
             cell.customContextMenuRequested.connect(lambda pos, c=cell: self.on_right_click(c))
 
+            is_today = (d == compute_work_date(datetime.now()))
+
             # ── 状态判定优先级 ──
             if rec and rec.get("leave_type") and rec["leave_type"] != "none":
                 # 请假
                 leave_text = LEAVE_TYPES.get(rec["leave_type"], rec["leave_type"])
-                cell.set_status(leave_text, theme["cal_blue_bg"], theme["cal_blue_fg"])
+                cell.set_status(leave_text, theme["cal_blue_bg"], theme["cal_blue_fg"], is_today)
             elif hol and hol.get("is_off_day"):
                 # 法定假日
-                cell.set_status(hol["name"], theme["cal_holiday_bg"], theme["cal_holiday_fg"])
+                cell.set_status(hol["name"], theme["cal_holiday_bg"], theme["cal_holiday_fg"], is_today)
             elif hol and not hol.get("is_off_day"):
                 # 调休上班日
                 total = rec.get("total_hours", 0) if rec else 0
-                cell.set_status(f"调休 {total:.1f}h" if total else "调休上班", theme["cal_overtime_bg"], theme["cal_overtime_fg"])
+                cell.set_status(f"调休 {total:.1f}h" if total else "调休上班", theme["cal_overtime_bg"], theme["cal_overtime_fg"], is_today)
             elif rec and rec.get("total_hours"):
                 # 有工时记录
                 total = rec["total_hours"]
@@ -314,19 +323,15 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
                 start_short = start_str[11:16] if len(start_str) > 11 else ""
                 end_short = end_str[11:16] if len(end_str) > 11 else ""
                 if reached:
-                    cell.set_status(f"{total:.1f}h\n{start_short}-{end_short}", theme["cal_green_bg"], theme["cal_green_fg"])
+                    cell.set_status(f"{total:.1f}h\n{start_short}-{end_short}", theme["cal_green_bg"], theme["cal_green_fg"], is_today)
                 else:
-                    cell.set_status(f"{total:.1f}h\n{start_short}-{end_short}", theme["cal_red_bg"], theme["cal_red_fg"])
+                    cell.set_status(f"{total:.1f}h\n{start_short}-{end_short}", theme["cal_red_bg"], theme["cal_red_fg"], is_today)
             else:
                 # 无记录
                 if d.weekday() >= 5:
-                    cell.set_status("周末", theme["cal_weekend_bg"], theme["cal_weekend_fg"])
+                    cell.set_status("周末", theme["cal_weekend_bg"], theme["cal_weekend_fg"], is_today)
                 else:
-                    cell.set_status("--", theme["cal_workday_bg"], theme["cal_workday_fg"])
-
-            # 标记今天（按 6:00 跨天归属）
-            if d == compute_work_date(datetime.now()):
-                cell.setStyleSheet(cell.styleSheet() + f"QFrame#DayCell {{ border: 2px solid {theme['primary']}; }}")
+                    cell.set_status("--", theme["cal_workday_bg"], theme["cal_workday_fg"], is_today)
 
             self.grid_layout.addWidget(cell, row, col)
             self._cells.append(cell)
