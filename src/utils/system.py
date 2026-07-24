@@ -31,7 +31,10 @@ def get_hid_idle_seconds() -> float:
     Returns:
         空闲时长（秒），或 -1.0 表示读取失败
     """
-    result = subprocess.run(["ioreg", "-c", "IOHIDSystem"], capture_output=True, text=True)
+    try:
+        result = subprocess.run(["ioreg", "-c", "IOHIDSystem"], capture_output=True, text=True, timeout=5)
+    except subprocess.TimeoutExpired:
+        return -1.0
     for line in result.stdout.split("\n"):
         if "HIDIdleTime" in line:
             match = re.search(r'"HIDIdleTime"\s*=\s*(\d+)', line)

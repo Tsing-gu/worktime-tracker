@@ -8,6 +8,8 @@ edit_start_dialog - 修改上班时间弹窗
 版本: 0.13.0
 """
 
+import threading
+
 from PySide6 import QtWidgets, QtCore
 
 
@@ -35,11 +37,10 @@ class EditStartDialog(QtWidgets.QDialog):
         self.input_edit.setFocusPolicy(QtCore.Qt.ClickFocus)
         layout.addWidget(self.input_edit)
 
-        pmset_btn = QtWidgets.QPushButton("从 pmset 读取")
-        pmset_btn.clicked.connect(self._on_fill_pmset)
-        layout.addWidget(pmset_btn)
-
-        pmset_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        self._pmset_btn = QtWidgets.QPushButton("从 pmset 读取")
+        self._pmset_btn.clicked.connect(self._on_fill_pmset)
+        self._pmset_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        layout.addWidget(self._pmset_btn)
 
         btn_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
@@ -55,8 +56,23 @@ class EditStartDialog(QtWidgets.QDialog):
         layout.addWidget(btn_box)
 
     def _on_fill_pmset(self):
-        """从 pmset 读取上班时间并填充输入框。"""
-        pmset_time = self._service.get_pmset_start_time()
+        """从 pmset 读取上班时间，子线程执行避免阻塞 UI。"""
+        self._pmset_btn.setEnabled(False)
+        self._pmset_btn.setText("读取中...")
+
+        def worker():
+            pmset_time = self._service.get_pmset_start_time()
+            QtCore.QMetaObject.invokeMethod(self, "_on_pmset_result",
+                                            QtCore.Qt.QueuedConnection,
+                                            QtCore.Q_ARG(object, pmset_time))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    @QtCore.Slot(object)
+    def _on_pmset_result(self, pmset_time):
+        """pmset 读取完成，在主线程回填输入框。"""
+        self._pmset_btn.setEnabled(True)
+        self._pmset_btn.setText("从 pmset 读取")
         if pmset_time:
             self.input_edit.setText(pmset_time.strftime("%H:%M"))
         else:

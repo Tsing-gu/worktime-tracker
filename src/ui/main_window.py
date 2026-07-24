@@ -18,6 +18,7 @@ main_window - 主窗口
 
 import sys
 import os
+import threading
 from datetime import datetime, date, timedelta
 
 from PySide6 import QtWidgets, QtCore, QtGui
@@ -61,6 +62,11 @@ class MainWindow(QtWidgets.QMainWindow):
         tray:      系统托盘图标
     """
 
+    poll_finished = QtCore.Signal(object)
+    update_check_finished = QtCore.Signal(object)
+    holiday_loaded = QtCore.Signal()
+    export_finished = QtCore.Signal(str, bool)
+
     def __init__(self):
         """初始化主窗口：创建 service、初始化 UI/托盘/定时器、执行启动逻辑。"""
         super().__init__()
@@ -73,6 +79,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.update_service = UpdateService(self.service.settings_repo)
         self._tray_popup_menu = None  # 当前时长卡菜单
         self._update_checking = False  # 防止重复检查
+        self._initialized = False  # service.init() 是否完成
 
         self._init_ui()
         self._init_tray()
@@ -81,6 +88,11 @@ class MainWindow(QtWidgets.QMainWindow):
 
         from src.ui.theme import ThemeManager
         ThemeManager.instance().theme_changed.connect(self.refresh_ui)
+
+        self.poll_finished.connect(self._on_poll_finished)
+        self.update_check_finished.connect(self._on_update_check_finished)
+        self.holiday_loaded.connect(self._on_holiday_loaded)
+        self.export_finished.connect(self._on_export_finished)
 
     # ─── UI 初始化 ─────────────────────────────────────────
 
@@ -346,8 +358,21 @@ class MainWindow(QtWidgets.QMainWindow):
     # ─── 启动逻辑 ──────────────────────────────────────────
 
     def _on_startup(self):
-        """程序启动时调用：初始化 service 并刷新 UI。"""
-        self.service.init()
+        """程序启动时调用：子线程初始化 service（含 Holiday API + 网络检测），不阻塞 UI。"""
+        def worker():
+            try:
+                self.service.init()
+                self._initialized = True
+                self.holiday_loaded.emit()
+            except Exception as e:
+                print(f"[Startup] 初始化失败：{e}")
+                self.holiday_loaded.emit()
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    @QtCore.Slot()
+    def _on_holiday_loaded(self):
+        """service.init() 完成后在主线程刷新 UI。"""
         self.refresh_ui()
 
     # ─── 窗口控制 ──────────────────────────────────────────
@@ -520,32 +545,47 @@ class MainWindow(QtWidgets.QMainWindow):
         """
         30 秒定时器回调。
 
-        流程:
-            1. 调用 service.poll_and_record() 执行轮询 + 持久化
-            2. 根据返回事件发送通知（下班/达标/回来）
-            3. 检查次日确认弹窗
-            4. 刷新 UI
-
-        若有模态对话框（修改上班/手动下班/消息框等）打开，跳过本次轮询，
-        避免 poll_and_record 中的 subprocess.run 阻塞主线程导致按钮无响应。
+        在子线程中执行 poll_and_record（含 ioreg/ipconfig/osascript 等阻塞 I/O），
+        结果通过 poll_finished 信号回主线程处理，主线程永不阻塞。
         """
-        if QtWidgets.QApplication.activeModalWidget() is not None:
+        if not self._initialized:
             return
 
-        result = self.service.poll_and_record()
+        def worker():
+            try:
+                result = self.service.poll_and_record()
+                self.poll_finished.emit(result)
+            except Exception as e:
+                print(f"[Poll] 轮询失败：{e}")
+                self.poll_finished.emit(None)
 
-        # ── 下班通知 ──
+        threading.Thread(target=worker, daemon=True).start()
+
+    @QtCore.Slot(object)
+    def _on_poll_finished(self, result):
+        """轮询完成后在主线程处理结果：通知/弹窗/refresh_ui。"""
+        if result is None:
+            self.refresh_ui()
+            return
+
+        # ── 下班通知（子线程发送 osascript，不阻塞主线程）──
         if result.event == "off":
             if self._get_setting_bool(SETTING_NOTIFY_ON_OFF, True):
-                notification_service.notify_off_work(
-                    result.off_time.strftime("%H:%M"), result.worked_hours
-                )
+                threading.Thread(
+                    target=notification_service.notify_off_work,
+                    args=(result.off_time.strftime("%H:%M"), result.worked_hours),
+                    daemon=True,
+                ).start()
         # ── 达标通知 ──
         elif result.event == "target_reached":
             if self._get_setting_bool(SETTING_NOTIFY_ON_TARGET, True):
                 status = self.service.get_today_status()
                 required = status.required_hours
-                notification_service.notify_target_reached(result.worked_hours, required)
+                threading.Thread(
+                    target=notification_service.notify_target_reached,
+                    args=(result.worked_hours, required),
+                    daemon=True,
+                ).start()
         # ── 下班后回来 → 弹窗确认恢复 ──
         elif result.event == "back":
             self._confirm_resume()
@@ -579,33 +619,66 @@ class MainWindow(QtWidgets.QMainWindow):
     # ─── 手动检查更新 ──────────────────────────────────────
 
     def on_check_update(self):
-        """托盘菜单「检查更新」手动触发。"""
+        """托盘菜单「检查更新」手动触发。子线程执行网络请求，不阻塞 UI。"""
         if self._update_checking:
-            QtWidgets.QMessageBox.information(self, "检查更新", "正在检查中，请稍候...")
             return
         self._update_checking = True
-        try:
-            info = self.update_service.check_for_updates()
-            self.update_service.mark_checked()
-            if not info:
-                QtWidgets.QMessageBox.information(self, "检查更新", "已是最新版本")
-                return
-            self._show_update_confirm(info)
-        except Exception as e:
-            QtWidgets.QMessageBox.warning(self, "检查更新", f"检查失败：{e}")
-        finally:
-            self._update_checking = False
 
-    def _check_update_after_confirm(self):
-        """次日确认完成后自动检查更新（每天一次），有新版则弹更新确认窗。"""
-        self.service.mark_yesterday_checked()
-        try:
-            info = self.update_service.check_for_updates()
-            self.update_service.mark_checked()
+        def worker():
+            try:
+                info = self.update_service.check_for_updates()
+                self.update_service.mark_checked()
+                self.update_check_finished.emit(("manual", info))
+            except Exception as e:
+                print(f"[Update] 检查失败：{e}")
+                self.update_check_finished.emit(("manual", "error"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    @QtCore.Slot(object)
+    def _on_update_check_finished(self, payload):
+        """更新检查完成，在主线程处理结果。
+
+        payload 格式：(来源标记, 结果)
+            ("manual", UpdateInfo) → 有新版，弹确认窗
+            ("manual", None)       → 已是最新
+            ("manual", "error")    → 检查失败
+            ("auto", UpdateInfo)   → 有新版，弹确认窗
+            ("auto", None)         → 无新版，静默
+        """
+        source, info = payload
+
+        if source == "auto":
             if info:
                 self._show_update_confirm(info)
-        except Exception as e:
-            print(f"[Update] 自动检查失败：{e}")
+            return
+
+        # 手动检查路径
+        self._update_checking = False
+        if info == "error":
+            QtWidgets.QMessageBox.warning(self, "检查更新", "检查失败，请稍后重试")
+        elif info:
+            self._show_update_confirm(info)
+        else:
+            QtWidgets.QMessageBox.information(self, "检查更新", "已是最新版本")
+
+    def _check_update_after_confirm(self):
+        """次日确认完成后自动检查更新（每天一次），子线程执行不阻塞 UI。
+
+        自动检查路径不弹"已是最新"/"检查失败"提示——静默处理。
+        用 update_check_finished 信号但区分手动/自动：自动路径用 _auto=True 标记。
+        """
+        self.service.mark_yesterday_checked()
+
+        def worker():
+            try:
+                info = self.update_service.check_for_updates()
+                self.update_service.mark_checked()
+                self.update_check_finished.emit(("auto", info))
+            except Exception as e:
+                print(f"[Update] 自动检查失败：{e}")
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def _show_update_confirm(self, info):
         """弹出更新确认窗。"""
@@ -866,8 +939,23 @@ class MainWindow(QtWidgets.QMainWindow):
             return
 
         exporter = self.service.get_exporter()
-        path = exporter.to_excel(start, end)
-        QtWidgets.QMessageBox.information(self, "导出成功", f"文件已保存到：\n{path}")
+
+        def worker():
+            try:
+                path = exporter.to_excel(start, end)
+                self.export_finished.emit(path, True)
+            except Exception as e:
+                self.export_finished.emit(str(e), False)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    @QtCore.Slot(str, bool)
+    def _on_export_finished(self, result, success):
+        """导出完成后在主线程弹提示。"""
+        if success:
+            QtWidgets.QMessageBox.information(self, "导出成功", f"文件已保存到：\n{result}")
+        else:
+            QtWidgets.QMessageBox.warning(self, "导出失败", result)
 
     # ─── 窗口关闭与退出 ────────────────────────────────────
 

@@ -34,11 +34,16 @@ class Database:
         self._conn: sqlite3.Connection = None
 
     def _get_conn(self) -> sqlite3.Connection:
-        """懒加载 SQLite 连接（row_factory=Row），复用连接。"""
+        """懒加载 SQLite 连接（row_factory=Row），复用连接。
+
+        check_same_thread=False 允许子线程使用同一连接，
+        配合 WAL 模式实现多读 + 一写的并发安全。
+        """
         if self._conn is None:
             Path(os.path.dirname(self._db_path)).mkdir(parents=True, exist_ok=True)
-            self._conn = sqlite3.connect(self._db_path)
+            self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
             self._conn.row_factory = sqlite3.Row
+            self._conn.execute("PRAGMA journal_mode=WAL")
         return self._conn
 
     @contextmanager
