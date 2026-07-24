@@ -369,8 +369,7 @@ class WorktimeService:
     def check_yesterday(self) -> Optional[tuple]:
         """检查是否需要弹出次日确认提醒。
 
-        注意：本方法不再内部修改 _checked_yesterday 状态，
-        由调用方在确认/跳过后调用 mark_yesterday_checked() 显式标记。
+        只返回未确认（is_confirmed=0）的记录，已确认的不再弹窗。
         """
         today = compute_work_date(datetime.now())
         prev = self._get_calculator().previous_workday(today)
@@ -380,7 +379,7 @@ class WorktimeService:
 
         daily = self.worktime_repo.get(prev)
 
-        if daily and daily.get("start_time"):
+        if daily and daily.get("start_time") and not daily.get("is_confirmed", 0):
             return (prev, daily)
         else:
             return None
