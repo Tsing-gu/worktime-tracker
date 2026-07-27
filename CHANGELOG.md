@@ -1,3 +1,7 @@
+## [0.15.0] - 2026-07-27
+
+- **变更**: 重构命名统一层后缀：services层统一Service后缀(WorktimeExporter→ExportService)，core层统一Core后缀(WorkTracker→WorkTrackerCore, WorktimeCalculator→WorktimeCalculatorCore)，data层基类Database→Repository，ui层10个类统一加UI后缀；文件归属整理：holiday_service从core移到services(业务编排)，date_utils从core移到utils(纯函数工具)
+
 ## [0.14.5] - 2026-07-27
 
 - **修复**: 消除所有主线程卡顿点：settings_dialog/edit_start_dialog/calendar_dialog 残留 QMessageBox 静态方法(隐式 exec_)改非模态 show()；_on_record_office subprocess(ipconfig timeout=3)移入 worker 线程；_find_holiday 线性扫描 O(N) 改 dict O(1) 查找；get_period_range 重复调用消除(service+calculator 各调一次)；_iterate_range records 线性查找改 dict 索引；refresh_ui 统计计算从 O(N²) 降至 0.2ms
