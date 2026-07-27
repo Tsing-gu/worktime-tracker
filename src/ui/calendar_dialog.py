@@ -114,6 +114,7 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         self.setWindowTitle("日历")
         self.setMinimumSize(820, 660)
         self.service = service or WorktimeService()
+        self._pending_sub = None  # 当前非模态子弹窗引用，防止 GC
 
         from src.ui.theme import ThemeManager
         ThemeManager.instance().theme_changed.connect(self.load_data)
@@ -346,7 +347,7 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
 
     def on_right_click(self, cell: DayCell):
         """
-        处理日期格右键菜单。
+        处理日期格右键菜单（非模态 popup）。
 
         提供三个操作: 请假 / 手动补录或编辑 / 清除记录
 
@@ -359,35 +360,48 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         act_leave = menu.addAction("请假")
         act_edit = menu.addAction("手动补录/编辑")
         act_clear = menu.addAction("清除记录")
-        action = menu.exec_(cell.mapToGlobal(QtCore.QPoint(10, 10)))
+        acts = {"leave": act_leave, "edit": act_edit, "clear": act_clear}
+        menu.triggered.connect(
+            lambda action: self._on_menu_action(action, work_date_str, acts))
+        menu.aboutToHide.connect(menu.deleteLater)
+        menu.popup(cell.mapToGlobal(QtCore.QPoint(10, 10)))
 
-        if action == act_leave:
+    def _on_menu_action(self, action, work_date_str, acts):
+        """右键菜单动作分发。"""
+        if action == acts["leave"]:
             self.mark_leave(work_date_str)
-        elif action == act_edit:
+        elif action == acts["edit"]:
             self.manual_edit(work_date_str)
-        elif action == act_clear:
+        elif action == acts["clear"]:
             self.clear_record(work_date_str)
 
     def mark_leave(self, work_date_str: str):
         """
-        打开请假弹窗并保存请假记录。
+        打开请假弹窗（非模态）并保存请假记录。
 
         Args:
             work_date_str: 工作日日期字符串
         """
         wd = date.fromisoformat(work_date_str)
         dialog = LeaveDialog(self, default_date=wd)
-        if dialog.exec() == QtWidgets.QDialog.Accepted:
-            leave_date = dialog.get_date()
-            leave_type = dialog.get_leave_type()
-            self.service.mark_leave(leave_date, leave_type)
-            self.load_data()
+        self._pending_sub = dialog
+
+        def on_finished(result_code):
+            self._pending_sub = None
+            if result_code == QtWidgets.QDialog.Accepted:
+                leave_date = dialog.get_date()
+                leave_type = dialog.get_leave_type()
+                self.service.mark_leave(leave_date, leave_type)
+                self.load_data()
+
+        dialog.finished.connect(on_finished)
+        dialog.show()
 
     def manual_edit(self, work_date_str: str):
         """
-        手动补录/编辑某天的上下班时间。
+        手动补录/编辑某天的上下班时间（非模态级联）。
 
-        通过两次 QInputDialog 输入上班和下班时间。
+        先弹上班时间输入框，关闭后弹下班时间输入框，都确认后保存。
 
         Args:
             work_date_str: 工作日日期字符串
@@ -402,24 +416,28 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
             if existing.get("end_time"):
                 end_default = existing["end_time"][11:16]
 
-        # 输入上班时间
-        start_str = self._input_dialog(f"{work_date_str} 上班时间 (HH:MM)：", start_default)
-        if start_str is None:
-            return
-        # 输入下班时间
-        end_str = self._input_dialog(f"{work_date_str} 下班时间 (HH:MM)：", end_default)
-        if end_str is None:
-            return
+        def on_start(start_str):
+            if not start_str:
+                return
+            self._input_dialog(
+                f"{work_date_str} 下班时间 (HH:MM)：", end_default,
+                lambda end_str: self._apply_manual_edit(wd, work_date_str, start_str, end_str))
 
-        # 调用 service 保存
+        self._input_dialog(
+            f"{work_date_str} 上班时间 (HH:MM)：", start_default, on_start)
+
+    def _apply_manual_edit(self, wd, work_date_str, start_str, end_str):
+        """两级输入框都完成后保存记录。"""
+        if not end_str:
+            return
         try:
             self.service.manual_record(wd, start_str, end_str)
             self.load_data()
         except ValueError as e:
             QtWidgets.QMessageBox.warning(self, "格式错误", str(e))
 
-    def _input_dialog(self, label_text: str, default_text: str = ""):
-        """自定义文本输入对话框（按钮中文化）。返回文本或 None（取消）。"""
+    def _input_dialog(self, label_text: str, default_text: str, on_accepted):
+        """自定义文本输入对话框（非模态），确认后回调 on_accepted(text)。"""
         dialog = QtWidgets.QDialog(self)
         dialog.setWindowTitle("手动补录")
         dialog.setMinimumWidth(280)
@@ -441,13 +459,19 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         btn_box.accepted.connect(dialog.accept)
         btn_box.rejected.connect(dialog.reject)
         layout.addWidget(btn_box)
-        if dialog.exec() == QtWidgets.QDialog.Accepted:
-            return edit.text().strip()
-        return None
+        self._pending_sub = dialog
+
+        def on_finished(result_code):
+            self._pending_sub = None
+            if result_code == QtWidgets.QDialog.Accepted:
+                on_accepted(edit.text().strip())
+
+        dialog.finished.connect(on_finished)
+        dialog.show()
 
     def clear_record(self, work_date_str: str):
         """
-        清除指定日期的工时记录（需二次确认）。
+        清除指定日期的工时记录（非模态二次确认）。
 
         Args:
             work_date_str: 工作日日期字符串
@@ -457,7 +481,13 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         msg.setText(f"确认清除 {work_date_str} 的记录？")
         yes_btn = msg.addButton("确认", QtWidgets.QMessageBox.YesRole)
         msg.addButton("取消", QtWidgets.QMessageBox.NoRole)
-        msg.exec()
-        if msg.clickedButton() == yes_btn:
-            self.service.clear_record(work_date_str)
-            self.load_data()
+        self._pending_sub = msg
+
+        def on_finished(_):
+            self._pending_sub = None
+            if msg.clickedButton() == yes_btn:
+                self.service.clear_record(work_date_str)
+                self.load_data()
+
+        msg.finished.connect(on_finished)
+        msg.show()

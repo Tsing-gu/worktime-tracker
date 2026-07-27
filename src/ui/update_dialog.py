@@ -68,7 +68,6 @@ class UpdateProgressDialog(QtWidgets.QDialog):
         super().__init__(parent)
         self.setWindowTitle("正在下载更新")
         self.setMinimumWidth(360)
-        self.setModal(True)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 20)

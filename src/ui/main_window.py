@@ -80,6 +80,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._tray_popup_menu = None  # 当前时长卡菜单
         self._update_checking = False  # 防止重复检查
         self._initialized = False  # service.init() 是否完成
+        self._busy = False  # 有未关闭的非模态弹窗时为 True，期间跳过新弹窗与 tick
+        self._pending_dialog = None  # 当前非模态弹窗引用，防止 GC
 
         self._init_ui()
         self._init_tray()
@@ -577,7 +579,7 @@ class MainWindow(QtWidgets.QMainWindow):
         在子线程中执行 poll_and_record（含 ioreg/ipconfig/osascript 等阻塞 I/O），
         结果通过 poll_finished 信号回主线程处理，主线程永不阻塞。
         """
-        if not self._initialized:
+        if not self._initialized or self._busy:
             return
 
         def worker():
@@ -616,32 +618,45 @@ class MainWindow(QtWidgets.QMainWindow):
                     daemon=True,
                 ).start()
         # ── 下班后回来 → 弹窗确认恢复 ──
-        elif result.event == "back":
+        elif result.event == "back" and not self._busy:
             self._confirm_resume()
 
         # ── 先刷新 UI（含日期），确保跨天后界面立即更新 ──
         self.refresh_ui()
 
-        # ── 再弹次日确认/更新检查（可能阻塞，放最后）──
-        if self.service.should_check_yesterday():
+        # ── 再弹次日确认/更新检查（放最后）──
+        if not self._busy and self.service.should_check_yesterday():
             self._check_yesterday_confirm()
             self._check_update_after_confirm()
 
     def _confirm_resume(self):
         """
-        下班后检测到用户回来活跃，弹窗确认是否恢复计时。
+        下班后检测到用户回来活跃，弹窗确认是否恢复计时（非模态）。
 
         确认 → 调用 service.resume_after_off() 清除下班记录，恢复"工作中"状态
         取消 → 保持下班状态不变
         """
-        reply = self._msg_question(
-            self, "恢复计时",
+        box = QtWidgets.QMessageBox(
+            QtWidgets.QMessageBox.Question, "恢复计时",
             "检测到您已回来继续工作，是否恢复计时？\n\n"
             "确认 → 清除下班记录，继续追踪工时\n"
-            "取消 → 保持当前下班状态")
-        if reply == QtWidgets.QMessageBox.Yes:
-            self.service.resume_after_off()
-            self.refresh_ui()
+            "取消 → 保持当前下班状态",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, self)
+        for btn in box.buttons():
+            btn.setAutoDefault(False)
+            btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        self._busy = True
+        self._pending_dialog = box
+
+        def on_finished(result_code):
+            self._busy = False
+            self._pending_dialog = None
+            if result_code == QtWidgets.QMessageBox.Yes:
+                self.service.resume_after_off()
+                self.refresh_ui()
+
+        box.finished.connect(on_finished)
+        box.show()
 
     # ─── 手动检查更新 ──────────────────────────────────────
 
@@ -708,10 +723,19 @@ class MainWindow(QtWidgets.QMainWindow):
         threading.Thread(target=worker, daemon=True).start()
 
     def _show_update_confirm(self, info):
-        """弹出更新确认窗。"""
+        """弹出更新确认窗（非模态）。"""
         dlg = UpdateConfirmDialog(info, self)
-        if dlg.exec() == QtWidgets.QDialog.Accepted:
-            self._download_and_install(info)
+        self._busy = True
+        self._pending_dialog = dlg
+
+        def on_finished(result_code):
+            self._busy = False
+            self._pending_dialog = None
+            if result_code == QtWidgets.QDialog.Accepted:
+                self._download_and_install(info)
+
+        dlg.finished.connect(on_finished)
+        dlg.show()
 
     def _download_and_install(self, info):
         """下载并安装更新。"""
@@ -719,6 +743,14 @@ class MainWindow(QtWidgets.QMainWindow):
         progress.show()
         self.update_service.reset_cancel()
         progress.set_cancel_callback(self.update_service.cancel_download)
+        self._busy = True
+        self._pending_dialog = progress
+
+        def on_finished(_):
+            self._busy = False
+            self._pending_dialog = None
+
+        progress.finished.connect(on_finished)
 
         def on_progress(downloaded, total):
             # 通过 QMetaObject 在主线程更新 UI，避免跨线程操作 Qt 控件崩溃
@@ -761,7 +793,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _check_yesterday_confirm(self):
         """
-        检查是否需要弹出次日确认弹窗。
+        检查是否需要弹出次日确认弹窗（非模态）。
 
         通过 service.check_yesterday() 获取待确认的前一工作日记录，
         弹出 ConfirmYesterdayDialog 供用户确认或修改。
@@ -773,12 +805,22 @@ class MainWindow(QtWidgets.QMainWindow):
         prev, daily = result
         required = self.service.get_required_hours()
         dialog = ConfirmYesterdayDialog(prev, daily, required, self)
-        if dialog.exec() == QtWidgets.QDialog.Accepted:
-            end_time = dialog.get_end_time()
-            self.service.confirm_yesterday(prev, end_time)
-        else:
-            self.service.skip_yesterday(prev)
-        self.service.mark_yesterday_checked()
+        self._busy = True
+        self._pending_dialog = dialog
+
+        def on_finished(result_code):
+            if result_code == QtWidgets.QDialog.Accepted:
+                end_time = dialog.get_end_time()
+                self.service.confirm_yesterday(prev, end_time)
+            else:
+                self.service.skip_yesterday(prev)
+            self.service.mark_yesterday_checked()
+            self._busy = False
+            self._pending_dialog = None
+            self.refresh_ui()
+
+        dialog.finished.connect(on_finished)
+        dialog.show()
 
     # ─── UI 刷新 ──────────────────────────────────────────
 
@@ -856,28 +898,35 @@ class MainWindow(QtWidgets.QMainWindow):
     # ─── 事件处理 ──────────────────────────────────────────
 
     def on_edit_start(self):
-        """修改今日上班时间：弹出自定义对话框，支持手动输入或从 pmset 读取。"""
+        """修改今日上班时间：非模态弹窗，支持手动输入或从 pmset 读取。"""
         status = self.service.get_today_status()
         current_start = status.start_time
         current_str = current_start.strftime("%H:%M") if current_start else ""
 
         dialog = EditStartDialog(current_str, self.service, self)
-        if dialog.exec() != QtWidgets.QDialog.Accepted:
-            return
+        self._busy = True
+        self._pending_dialog = dialog
 
-        new_str = dialog.get_time_str()
-        if not new_str:
-            return
+        def on_finished(result_code):
+            self._busy = False
+            self._pending_dialog = None
+            if result_code != QtWidgets.QDialog.Accepted:
+                return
+            new_str = dialog.get_time_str()
+            if not new_str:
+                return
+            try:
+                new_start = self.service.edit_start_time(new_str)
+                self.refresh_ui()
+                self._msg_information(self, "已修改", f"上班时间已更新为 {new_start.strftime('%H:%M')}")
+            except ValueError as e:
+                self._msg_warning(self, "格式错误", str(e))
 
-        try:
-            new_start = self.service.edit_start_time(new_str)
-            self.refresh_ui()
-            self._msg_information(self, "已修改", f"上班时间已更新为 {new_start.strftime('%H:%M')}")
-        except ValueError as e:
-            self._msg_warning(self, "格式错误", str(e))
+        dialog.finished.connect(on_finished)
+        dialog.show()
 
     def on_manual_off(self):
-        """手动下班：弹窗确认后通过 service.manual_off() 记录。"""
+        """手动下班：非模态弹窗确认后通过 service.manual_off() 记录。"""
         status = self.service.get_today_status()
         if not status.has_started:
             self._msg_information(self, "提示", "今天还没有上班记录，无法下班")
@@ -886,42 +935,83 @@ class MainWindow(QtWidgets.QMainWindow):
             self._msg_information(self, "提示", "今天已经下班了")
             return
 
-        reply = self._msg_question(
-            self, "确认下班",
+        box = QtWidgets.QMessageBox(
+            QtWidgets.QMessageBox.Question, "确认下班",
             f"当前时间：{datetime.now().strftime('%H:%M')}\n"
             f"今日已工作：{status.worked_hours:.1f} 小时"
             f"{'  已达标' if status.is_target_reached else ''}\n\n"
-            f"确认以当前时间记录下班？")
-        if reply == QtWidgets.QMessageBox.Yes:
-            result = self.service.manual_off()
-            if result.event == "manual_off":
-                self._msg_information(
-                    self, "已下班",
-                    f"下班时间：{result.off_time.strftime('%H:%M')}\n"
-                    f"今日工时：{result.worked_hours:.2f} 小时")
-                self.refresh_ui()
+            f"确认以当前时间记录下班？",
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, self)
+        for btn in box.buttons():
+            btn.setAutoDefault(False)
+            btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        self._busy = True
+        self._pending_dialog = box
+
+        def on_finished(result_code):
+            self._busy = False
+            self._pending_dialog = None
+            if result_code == QtWidgets.QMessageBox.Yes:
+                result = self.service.manual_off()
+                if result.event == "manual_off":
+                    self._msg_information(
+                        self, "已下班",
+                        f"下班时间：{result.off_time.strftime('%H:%M')}\n"
+                        f"今日工时：{result.worked_hours:.2f} 小时")
+                    self.refresh_ui()
+
+        box.finished.connect(on_finished)
+        box.show()
 
     def on_settings(self):
-        """打开设置弹窗，确认后保存设置。"""
+        """打开设置弹窗（非模态），确认后保存设置。"""
         dialog = SettingsDialog(self.service.get_settings(), self)
-        if dialog.exec() == QtWidgets.QDialog.Accepted:
-            self.service.update_settings(dialog.get_values())
-            self.refresh_ui()
+        self._busy = True
+        self._pending_dialog = dialog
+
+        def on_finished(result_code):
+            self._busy = False
+            self._pending_dialog = None
+            if result_code == QtWidgets.QDialog.Accepted:
+                self.service.update_settings(dialog.get_values())
+                self.refresh_ui()
+
+        dialog.finished.connect(on_finished)
+        dialog.show()
 
     def on_history(self):
-        """打开日历历史弹窗。"""
+        """打开日历历史弹窗（非模态）。"""
+        if self._busy:
+            return
         dialog = CalendarHistoryDialog(self, service=self.service)
-        dialog.exec()
+        self._busy = True
+        self._pending_dialog = dialog
+
+        def on_finished(_):
+            self._busy = False
+            self._pending_dialog = None
+
+        dialog.finished.connect(on_finished)
+        dialog.show()
 
     def on_leave(self):
-        """打开请假弹窗，确认后通过 service 标记请假。"""
+        """打开请假弹窗（非模态），确认后通过 service 标记请假。"""
         today = compute_work_date(datetime.now())
         dialog = LeaveDialog(self, default_date=today)
-        if dialog.exec() == QtWidgets.QDialog.Accepted:
-            leave_date = dialog.get_date()
-            leave_type = dialog.get_leave_type()
-            self.service.mark_leave(leave_date, leave_type)
-            self.refresh_ui()
+        self._busy = True
+        self._pending_dialog = dialog
+
+        def on_finished(result_code):
+            self._busy = False
+            self._pending_dialog = None
+            if result_code == QtWidgets.QDialog.Accepted:
+                leave_date = dialog.get_date()
+                leave_type = dialog.get_leave_type()
+                self.service.mark_leave(leave_date, leave_type)
+                self.refresh_ui()
+
+        dialog.finished.connect(on_finished)
+        dialog.show()
 
     def on_export(self):
         """导出本月数据为 Excel。"""
@@ -959,19 +1049,27 @@ class MainWindow(QtWidgets.QMainWindow):
         btn_row.addWidget(export_btn)
         dlg_layout.addLayout(btn_row)
 
-        if dlg.exec() != 1:
-            return
+        self._busy = True
+        self._pending_dialog = dlg
 
-        exporter = self.service.get_exporter()
+        def on_finished(result_code):
+            self._busy = False
+            self._pending_dialog = None
+            if result_code != 1:
+                return
+            exporter = self.service.get_exporter()
 
-        def worker():
-            try:
-                path = exporter.to_excel(start, end)
-                self.export_finished.emit(path, True)
-            except Exception as e:
-                self.export_finished.emit(str(e), False)
+            def worker():
+                try:
+                    path = exporter.to_excel(start, end)
+                    self.export_finished.emit(path, True)
+                except Exception as e:
+                    self.export_finished.emit(str(e), False)
 
-        threading.Thread(target=worker, daemon=True).start()
+            threading.Thread(target=worker, daemon=True).start()
+
+        dlg.finished.connect(on_finished)
+        dlg.show()
 
     @QtCore.Slot(str, bool)
     def _on_export_finished(self, result, success):

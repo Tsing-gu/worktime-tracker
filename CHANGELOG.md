@@ -1,3 +1,7 @@
+## [0.14.2] - 2026-07-27
+
+- **修复**: 修复周末长跑崩溃(Too many nested CFRunLoopRuns)：所有主线程弹窗改为非模态 show()+finished 信号驱动，彻底消除嵌套事件循环；新增 _busy 守卫，弹窗未关闭时定时器 tick 静默丢弃本轮，防止事件积压累积嵌套层级；UpdateProgressDialog 去除 setModal(True)；日历右键菜单 QMenu.exec_() 改为 popup()，子弹窗级联非模态化
+
 ## [0.14.1] - 2026-07-24
 
 - **修复**: 修复 QMessageBox 标准按钮需点两次：统一封装 _msg_box helper 禁用 autoDefault + NoFocus
