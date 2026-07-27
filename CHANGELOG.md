@@ -1,3 +1,7 @@
+## [0.14.4] - 2026-07-27
+
+- **修复**: 修复修改上班弹窗「从 pmset 读取」按钮卡在读取中：Q_ARG(object, datetime) 在 PySide6 QueuedConnection 下找不到 QMetaType 致 worker 线程静默崩溃，改为 Q_ARG(str) 传时间字符串
+
 ## [0.14.3] - 2026-07-27
 
 - **修复**: 修复自动检查更新与次日确认弹窗状态冲突：非模态化后两者并发导致 _pending_dialog 引用覆盖/_busy 状态混乱；_check_update_after_confirm 移到次日确认弹窗 on_finished 回调里，用户确认后才触发自动检查；_show_update_confirm 加 _busy 守卫

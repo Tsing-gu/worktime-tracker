@@ -62,19 +62,20 @@ class EditStartDialog(QtWidgets.QDialog):
 
         def worker():
             pmset_time = self._service.get_pmset_start_time()
+            time_str = pmset_time.strftime("%H:%M") if pmset_time else ""
             QtCore.QMetaObject.invokeMethod(self, "_on_pmset_result",
                                             QtCore.Qt.QueuedConnection,
-                                            QtCore.Q_ARG(object, pmset_time))
+                                            QtCore.Q_ARG(str, time_str))
 
         threading.Thread(target=worker, daemon=True).start()
 
-    @QtCore.Slot(object)
-    def _on_pmset_result(self, pmset_time):
+    @QtCore.Slot(str)
+    def _on_pmset_result(self, time_str):
         """pmset 读取完成，在主线程回填输入框。"""
         self._pmset_btn.setEnabled(True)
         self._pmset_btn.setText("从 pmset 读取")
-        if pmset_time:
-            self.input_edit.setText(pmset_time.strftime("%H:%M"))
+        if time_str:
+            self.input_edit.setText(time_str)
         else:
             QtWidgets.QMessageBox.information(self, "pmset", "未找到今天的活动记录")
 
