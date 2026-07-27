@@ -23,7 +23,7 @@ from contextlib import contextmanager
 from src.config import DB_PATH, DEFAULT_SETTINGS
 
 
-class Database:
+class Repository:
     """SQLite 数据库基类，管理连接与事务边界。
 
     子类通过 self._conn 复用连接，多步操作用 with self.transaction() as conn 包裹。

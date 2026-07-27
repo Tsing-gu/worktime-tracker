@@ -35,7 +35,7 @@ from src.config import (
 from src.ui.theme import get_theme
 
 
-class SettingsDialog(QtWidgets.QDialog):
+class SettingsDialogUI(QtWidgets.QDialog):
     """
     设置弹窗对话框。
 
@@ -54,11 +54,11 @@ class SettingsDialog(QtWidgets.QDialog):
 
     @staticmethod
     def _msg_info(parent, title, text):
-        SettingsDialog._msg(QtWidgets.QMessageBox.Information, parent, title, text)
+        SettingsDialogUI._msg(QtWidgets.QMessageBox.Information, parent, title, text)
 
     @staticmethod
     def _msg_warn(parent, title, text):
-        SettingsDialog._msg(QtWidgets.QMessageBox.Warning, parent, title, text)
+        SettingsDialogUI._msg(QtWidgets.QMessageBox.Warning, parent, title, text)
 
     def __init__(self, settings: dict, parent=None):
         """

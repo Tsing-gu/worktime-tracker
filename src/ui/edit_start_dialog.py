@@ -13,7 +13,7 @@ import threading
 from PySide6 import QtWidgets, QtCore
 
 
-class EditStartDialog(QtWidgets.QDialog):
+class EditStartDialogUI(QtWidgets.QDialog):
     """修改上班时间对话框。"""
 
     def __init__(self, current_start_str: str, service, parent=None):

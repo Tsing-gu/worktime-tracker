@@ -10,10 +10,10 @@ settings_repo - 设置仓储
 
 from typing import Optional
 
-from src.data.database import Database
+from src.data.database import Repository
 
 
-class SettingsRepository(Database):
+class SettingsRepository(Repository):
     """设置表仓储，提供键值设置的读写。"""
 
     def get(self, key: str, default: str = "") -> str:

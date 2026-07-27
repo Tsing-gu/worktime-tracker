@@ -63,7 +63,7 @@ class PollResult:
     last_active: Optional[datetime] = None
 
 
-class WorkTracker:
+class WorkTrackerCore:
     """
     工作状态追踪器。
 

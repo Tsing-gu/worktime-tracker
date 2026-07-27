@@ -14,7 +14,7 @@ from datetime import datetime, date, timedelta
 from PySide6 import QtWidgets, QtCore
 
 
-class ConfirmYesterdayDialog(QtWidgets.QDialog):
+class ConfirmYesterdayDialogUI(QtWidgets.QDialog):
     """
     次日工时确认弹窗。
 

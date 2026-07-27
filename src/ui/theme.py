@@ -12,7 +12,7 @@ theme - 深色/浅色主题与 QSS 样式表
 from PySide6 import QtWidgets, QtGui, QtCore
 
 
-class ThemeManager(QtCore.QObject):
+class ThemeManagerUI(QtCore.QObject):
     """主题管理器：全局信号通知主题切换，任何窗口 connect 即可自动刷新。"""
 
     theme_changed = QtCore.Signal()
@@ -29,7 +29,7 @@ class ThemeManager(QtCore.QObject):
         self.theme_changed.emit()
 
 
-_theme_manager = ThemeManager.instance()
+_theme_manager = ThemeManagerUI.instance()
 
 
 def is_dark_mode() -> bool:

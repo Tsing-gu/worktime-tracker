@@ -19,7 +19,7 @@ import sys
 from PySide6 import QtWidgets, QtCore
 
 from src.ui.theme import get_theme, build_qss
-from src.ui.main_window import MainWindow
+from src.ui.main_window import MainWindowUI
 from src.utils.version import get_version
 
 
@@ -47,9 +47,9 @@ class _DockReopenFilter(QtCore.QObject):
         return super().eventFilter(obj, event)
 
     def _reapply_theme(self):
-        from src.ui.theme import get_theme, build_qss, ThemeManager
+        from src.ui.theme import get_theme, build_qss, ThemeManagerUI
         self._app.setStyleSheet(build_qss(get_theme()))
-        ThemeManager.instance().emit_changed()
+        ThemeManagerUI.instance().emit_changed()
 
 
 def main():
@@ -76,7 +76,7 @@ def main():
     print(f"工时计算器 v{get_version()} 启动中...")
 
     # 创建并显示主窗口（service.init() 在 MainWindow 内部调用）
-    window = MainWindow()
+    window = MainWindowUI()
     window.show()
 
     # 监听 dock 图标点击：应用被激活且主窗口不可见时重新展开

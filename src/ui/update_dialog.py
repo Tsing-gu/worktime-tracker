@@ -15,7 +15,7 @@ from PySide6 import QtWidgets, QtCore, QtGui
 from src.utils.version import get_version
 
 
-class UpdateConfirmDialog(QtWidgets.QDialog):
+class UpdateConfirmDialogUI(QtWidgets.QDialog):
     """发现新版本时的确认弹窗。"""
 
     def __init__(self, info, parent=None):
@@ -59,7 +59,7 @@ class UpdateConfirmDialog(QtWidgets.QDialog):
         layout.addWidget(btn_box)
 
 
-class UpdateProgressDialog(QtWidgets.QDialog):
+class UpdateProgressDialogUI(QtWidgets.QDialog):
     """下载进度对话框。"""
 
     download_finished = QtCore.Signal(bool)

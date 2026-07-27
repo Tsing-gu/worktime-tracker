@@ -13,13 +13,13 @@ from datetime import datetime, date, timedelta
 from typing import Optional, List
 
 from src.data.models import WeekStats, MonthStats, TodayStatus, PeriodStats
-from src.core.date_utils import (
+from src.utils.date_utils import (
     get_week_range, get_month_range, is_workday, is_rest_day,
     get_period_range, get_previous_workday, build_holiday_index,
 )
 
 
-class WorktimeCalculator:
+class WorktimeCalculatorCore:
     """工时计算器，封装本期/月/周/今日的工时统计逻辑。
 
     构造期注入配置参数，避免每次调用重复传五件套。

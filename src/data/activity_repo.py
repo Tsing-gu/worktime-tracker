@@ -11,11 +11,11 @@ activity_repo - 活动事件仓储
 from datetime import datetime, date, timedelta
 from typing import List, Optional
 
-from src.data.database import Database
-from src.core.date_utils import compute_work_date
+from src.data.database import Repository
+from src.utils.date_utils import compute_work_date
 
 
-class ActivityRepository(Database):
+class ActivityRepository(Repository):
     """活动事件表仓储，提供键鼠活动记录的增删查。"""
 
     def record(self, timestamp: datetime, idle_seconds: float, is_active: bool, at_office: bool = False):

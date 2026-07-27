@@ -43,11 +43,11 @@ from src.data.settings_repo import SettingsRepository
 from src.data.activity_repo import ActivityRepository
 from src.data.worktime_repo import DailyWorktimeRepository
 from src.data.holiday_repo import HolidayRepository
-from src.core.tracker import WorkTracker, PollResult
-from src.core.calculator import WorktimeCalculator
-from src.core.holiday_service import HolidayService
-from src.core.date_utils import compute_work_date
-from src.services.export_service import WorktimeExporter
+from src.core.tracker import WorkTrackerCore, PollResult
+from src.core.calculator import WorktimeCalculatorCore
+from src.services.holiday_service import HolidayService
+from src.utils.date_utils import compute_work_date
+from src.services.export_service import ExportService
 from src.utils.system import get_first_active_from_pmset, get_network_status
 
 
@@ -66,7 +66,7 @@ class WorktimeService:
 
     def __init__(self):
         """初始化服务，创建内部 tracker 实例和各仓储/计算器。"""
-        self.tracker = WorkTracker()
+        self.tracker = WorkTrackerCore()
         self.current_work_date: Optional[date] = None
         self._checked_yesterday = False
         self._activities_cleaned_date: Optional[date] = None
@@ -85,14 +85,14 @@ class WorktimeService:
         )
 
         # 计算器（延迟初始化，需要从 DB 读取配置后才能构建）
-        self._calculator: Optional[WorktimeCalculator] = None
+        self._calculator: Optional[WorktimeCalculatorCore] = None
 
     # ─── 初始化 ────────────────────────────────────────────
 
     def init(self):
         """初始化数据库 + 节假日 + 回溯上班时间。"""
-        from src.data.database import Database
-        Database.init()
+        from src.data.database import Repository
+        Repository.init()
         today = date.today()
         self.holiday_service.ensure_loaded(today.year)
         self.current_work_date = compute_work_date(datetime.now())
@@ -345,7 +345,7 @@ class WorktimeService:
         """获取本期工时统计。"""
         today = compute_work_date(datetime.now())
         calc = self._get_calculator()
-        from src.core.date_utils import get_period_range
+        from src.utils.date_utils import get_period_range
         holidays = self.holiday_repo.get_all()
         period = get_period_range(today, holidays, calc.weekly_work_days)
         if period is None:
@@ -359,7 +359,7 @@ class WorktimeService:
     def get_month_stats(self) -> PeriodStats:
         """获取本月工时统计。"""
         today = compute_work_date(datetime.now())
-        from src.core.date_utils import get_month_range
+        from src.utils.date_utils import get_month_range
         month_start, month_end = get_month_range(today)
         records = self.worktime_repo.get_range(month_start, month_end)
         return self._get_calculator().month_stats(today, records, now=datetime.now())
@@ -513,20 +513,20 @@ class WorktimeService:
         """获取指定日期的工时记录。"""
         return self.worktime_repo.get(work_dt)
 
-    def get_exporter(self) -> WorktimeExporter:
+    def get_exporter(self) -> ExportService:
         """获取导出器实例。"""
-        return WorktimeExporter(self.worktime_repo)
+        return ExportService(self.worktime_repo)
 
     # ─── 内部工具 ──────────────────────────────────────────
 
-    def _get_calculator(self) -> WorktimeCalculator:
+    def _get_calculator(self) -> WorktimeCalculatorCore:
         """懒加载计算器，从 DB 读取配置后构建。"""
         if self._calculator is None:
             holidays = self.holiday_repo.get_all()
             daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
             holiday_auto = self.settings_repo.get(SETTING_HOLIDAY_AUTO_EXCLUDE, "1") == "1"
             weekly_work_days = int(self.settings_repo.get(SETTING_WEEKLY_WORK_DAYS, "5"))
-            self._calculator = WorktimeCalculator(
+            self._calculator = WorktimeCalculatorCore(
                 holidays=holidays,
                 daily_required=daily_required,
                 holiday_auto_exclude=holiday_auto,

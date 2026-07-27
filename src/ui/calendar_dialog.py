@@ -20,12 +20,12 @@ from PySide6 import QtWidgets, QtCore, QtGui
 
 from src.config import SETTING_DAILY_REQUIRED_HOURS, LEAVE_TYPES
 from src.services.worktime_service import WorktimeService
-from src.core.date_utils import compute_work_date
-from src.ui.leave_dialog import LeaveDialog
+from src.utils.date_utils import compute_work_date
+from src.ui.leave_dialog import LeaveDialogUI
 from src.ui.theme import get_theme
 
 
-class DayCell(QtWidgets.QFrame):
+class DayCellUI(QtWidgets.QFrame):
     """
     日历中单个日期格。
 
@@ -94,7 +94,7 @@ class DayCell(QtWidgets.QFrame):
         self.setStyleSheet(style)
 
 
-class CalendarHistoryDialog(QtWidgets.QDialog):
+class CalendarHistoryDialogUI(QtWidgets.QDialog):
     """
     日历历史弹窗。
 
@@ -116,8 +116,8 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
         self.service = service or WorktimeService()
         self._pending_sub = None  # 当前非模态子弹窗引用，防止 GC
 
-        from src.ui.theme import ThemeManager
-        ThemeManager.instance().theme_changed.connect(self.load_data)
+        from src.ui.theme import ThemeManagerUI
+        ThemeManagerUI.instance().theme_changed.connect(self.load_data)
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 16)
@@ -296,7 +296,7 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
             rec = records_map.get(key)
             hol = holidays_map.get(key)
 
-            cell = DayCell(d.day, d, self.grid_container)
+            cell = DayCellUI(d.day, d, self.grid_container)
             cell.customContextMenuRequested.connect(lambda pos, c=cell: self.on_right_click(c))
 
             is_today = (d == compute_work_date(datetime.now()))
@@ -345,7 +345,7 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
 
     # ─── 右键菜单 ──────────────────────────────────────────
 
-    def on_right_click(self, cell: DayCell):
+    def on_right_click(self, cell: DayCellUI):
         """
         处理日期格右键菜单（非模态 popup）。
 
@@ -383,7 +383,7 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
             work_date_str: 工作日日期字符串
         """
         wd = date.fromisoformat(work_date_str)
-        dialog = LeaveDialog(self, default_date=wd)
+        dialog = LeaveDialogUI(self, default_date=wd)
         self._pending_sub = dialog
 
         def on_finished(result_code):

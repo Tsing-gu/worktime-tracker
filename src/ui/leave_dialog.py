@@ -15,7 +15,7 @@ from PySide6 import QtWidgets, QtCore
 from src.config import LEAVE_TYPES
 
 
-class LeaveDialog(QtWidgets.QDialog):
+class LeaveDialogUI(QtWidgets.QDialog):
     """
     请假弹窗对话框。
 

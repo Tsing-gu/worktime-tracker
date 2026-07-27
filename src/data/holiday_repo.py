@@ -11,10 +11,10 @@ holiday_repo - 节假日仓储
 from datetime import date
 from typing import Optional, List
 
-from src.data.database import Database
+from src.data.database import Repository
 
 
-class HolidayRepository(Database):
+class HolidayRepository(Repository):
     """节假日表仓储，提供节假日缓存的读写。"""
 
     def save_year(self, year: int, holidays: list):

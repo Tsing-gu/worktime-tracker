@@ -11,10 +11,10 @@ worktime_repo - 每日工时仓储
 from datetime import datetime, date
 from typing import Optional, List
 
-from src.data.database import Database
+from src.data.database import Repository
 
 
-class DailyWorktimeRepository(Database):
+class DailyWorktimeRepository(Repository):
     """每日工时表仓储，提供上下班时间的增删改查。"""
 
     def get(self, work_dt: date) -> Optional[dict]:

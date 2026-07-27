@@ -3,7 +3,7 @@
 export_service - 数据导出服务
 ===============================
 
-WorktimeExporter 类，提供 CSV 和 Excel 两种格式的工时数据导出。
+ExportService 类，提供 CSV 和 Excel 两种格式的工时数据导出。
 通过构造期注入 worktime_repo，消除两格式的字段提取重复。
 
 版本: 0.8.0
@@ -18,7 +18,7 @@ from src.config import EXPORT_DIR
 from src.data.worktime_repo import DailyWorktimeRepository
 
 
-class WorktimeExporter:
+class ExportService:
     """工时数据导出器，支持 CSV 和 Excel 格式。
 
     Args:

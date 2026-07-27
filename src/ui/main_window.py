@@ -34,17 +34,17 @@ from src.services.worktime_service import WorktimeService
 from src.services import notification_service
 from src.services.update_service import UpdateService
 from src.utils.paths import resource_path
-from src.core.date_utils import compute_work_date
+from src.utils.date_utils import compute_work_date
 from src.ui.theme import get_theme
-from src.ui.settings_dialog import SettingsDialog
-from src.ui.calendar_dialog import CalendarHistoryDialog
-from src.ui.leave_dialog import LeaveDialog
-from src.ui.confirm_dialog import ConfirmYesterdayDialog
-from src.ui.update_dialog import UpdateConfirmDialog, UpdateProgressDialog
-from src.ui.edit_start_dialog import EditStartDialog
+from src.ui.settings_dialog import SettingsDialogUI
+from src.ui.calendar_dialog import CalendarHistoryDialogUI
+from src.ui.leave_dialog import LeaveDialogUI
+from src.ui.confirm_dialog import ConfirmYesterdayDialogUI
+from src.ui.update_dialog import UpdateConfirmDialogUI, UpdateProgressDialogUI
+from src.ui.edit_start_dialog import EditStartDialogUI
 
 
-class MainWindow(QtWidgets.QMainWindow):
+class MainWindowUI(QtWidgets.QMainWindow):
     """
     工时计算器主窗口。
 
@@ -88,8 +88,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._init_timer()
         self._on_startup()
 
-        from src.ui.theme import ThemeManager
-        ThemeManager.instance().theme_changed.connect(self.refresh_ui)
+        from src.ui.theme import ThemeManagerUI
+        ThemeManagerUI.instance().theme_changed.connect(self.refresh_ui)
 
         self.poll_finished.connect(self._on_poll_finished)
         self.update_check_finished.connect(self._on_update_check_finished)
@@ -110,19 +110,19 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @staticmethod
     def _msg_information(parent, title, text):
-        return MainWindow._msg_box(
+        return MainWindowUI._msg_box(
             QtWidgets.QMessageBox.Information, parent, title, text,
             QtWidgets.QMessageBox.Ok)
 
     @staticmethod
     def _msg_warning(parent, title, text):
-        return MainWindow._msg_box(
+        return MainWindowUI._msg_box(
             QtWidgets.QMessageBox.Warning, parent, title, text,
             QtWidgets.QMessageBox.Ok)
 
     @staticmethod
     def _msg_question(parent, title, text):
-        return MainWindow._msg_box(
+        return MainWindowUI._msg_box(
             QtWidgets.QMessageBox.Question, parent, title, text,
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
 
@@ -726,7 +726,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """弹出更新确认窗（非模态）。"""
         if self._busy:
             return
-        dlg = UpdateConfirmDialog(info, self)
+        dlg = UpdateConfirmDialogUI(info, self)
         self._busy = True
         self._pending_dialog = dlg
 
@@ -741,7 +741,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _download_and_install(self, info):
         """下载并安装更新。"""
-        progress = UpdateProgressDialog(self)
+        progress = UpdateProgressDialogUI(self)
         progress.show()
         self.update_service.reset_cancel()
         progress.set_cancel_callback(self.update_service.cancel_download)
@@ -806,7 +806,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         prev, daily = result
         required = self.service.get_required_hours()
-        dialog = ConfirmYesterdayDialog(prev, daily, required, self)
+        dialog = ConfirmYesterdayDialogUI(prev, daily, required, self)
         self._busy = True
         self._pending_dialog = dialog
 
@@ -906,7 +906,7 @@ class MainWindow(QtWidgets.QMainWindow):
         current_start = status.start_time
         current_str = current_start.strftime("%H:%M") if current_start else ""
 
-        dialog = EditStartDialog(current_str, self.service, self)
+        dialog = EditStartDialogUI(current_str, self.service, self)
         self._busy = True
         self._pending_dialog = dialog
 
@@ -968,7 +968,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def on_settings(self):
         """打开设置弹窗（非模态），确认后保存设置。"""
-        dialog = SettingsDialog(self.service.get_settings(), self)
+        dialog = SettingsDialogUI(self.service.get_settings(), self)
         self._busy = True
         self._pending_dialog = dialog
 
@@ -986,7 +986,7 @@ class MainWindow(QtWidgets.QMainWindow):
         """打开日历历史弹窗（非模态）。"""
         if self._busy:
             return
-        dialog = CalendarHistoryDialog(self, service=self.service)
+        dialog = CalendarHistoryDialogUI(self, service=self.service)
         self._busy = True
         self._pending_dialog = dialog
 
@@ -1000,7 +1000,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def on_leave(self):
         """打开请假弹窗（非模态），确认后通过 service 标记请假。"""
         today = compute_work_date(datetime.now())
-        dialog = LeaveDialog(self, default_date=today)
+        dialog = LeaveDialogUI(self, default_date=today)
         self._busy = True
         self._pending_dialog = dialog
 
