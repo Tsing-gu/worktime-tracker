@@ -1,3 +1,7 @@
+## [0.14.5] - 2026-07-27
+
+- **修复**: 消除所有主线程卡顿点：settings_dialog/edit_start_dialog/calendar_dialog 残留 QMessageBox 静态方法(隐式 exec_)改非模态 show()；_on_record_office subprocess(ipconfig timeout=3)移入 worker 线程；_find_holiday 线性扫描 O(N) 改 dict O(1) 查找；get_period_range 重复调用消除(service+calculator 各调一次)；_iterate_range records 线性查找改 dict 索引；refresh_ui 统计计算从 O(N²) 降至 0.2ms
+
 ## [0.14.4] - 2026-07-27
 
 - **修复**: 修复修改上班弹窗「从 pmset 读取」按钮卡在读取中：Q_ARG(object, datetime) 在 PySide6 QueuedConnection 下找不到 QMetaType 致 worker 线程静默崩溃，改为 Q_ARG(str) 传时间字符串
