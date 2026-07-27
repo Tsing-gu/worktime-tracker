@@ -627,7 +627,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # ── 再弹次日确认/更新检查（放最后）──
         if not self._busy and self.service.should_check_yesterday():
             self._check_yesterday_confirm()
-            self._check_update_after_confirm()
 
     def _confirm_resume(self):
         """
@@ -724,6 +723,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def _show_update_confirm(self, info):
         """弹出更新确认窗（非模态）。"""
+        if self._busy:
+            return
         dlg = UpdateConfirmDialog(info, self)
         self._busy = True
         self._pending_dialog = dlg
@@ -818,6 +819,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self._busy = False
             self._pending_dialog = None
             self.refresh_ui()
+            self._check_update_after_confirm()
 
         dialog.finished.connect(on_finished)
         dialog.show()

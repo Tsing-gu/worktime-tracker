@@ -1,3 +1,7 @@
+## [0.14.3] - 2026-07-27
+
+- **修复**: 修复自动检查更新与次日确认弹窗状态冲突：非模态化后两者并发导致 _pending_dialog 引用覆盖/_busy 状态混乱；_check_update_after_confirm 移到次日确认弹窗 on_finished 回调里，用户确认后才触发自动检查；_show_update_confirm 加 _busy 守卫
+
 ## [0.14.2] - 2026-07-27
 
 - **修复**: 修复周末长跑崩溃(Too many nested CFRunLoopRuns)：所有主线程弹窗改为非模态 show()+finished 信号驱动，彻底消除嵌套事件循环；新增 _busy 守卫，弹窗未关闭时定时器 tick 静默丢弃本轮，防止事件积压累积嵌套层级；UpdateProgressDialog 去除 setModal(True)；日历右键菜单 QMenu.exec_() 改为 popup()，子弹窗级联非模态化
