@@ -12,6 +12,17 @@
       4. length 为 DMG 文件字节数（stat -f%z 工时计算器.dmg）
     -->
     <item>
+      <title>版本 0.14.4</title>
+      <pubDate>Sun, 27 Jul 2026 12:00:00 +0800</pubDate>
+      <sparkle:version>35</sparkle:version>
+      <sparkle:shortVersionString>0.14.4</sparkle:shortVersionString>
+      <description><![CDATA[修复修改上班弹窗「从 pmset 读取」按钮卡在读取中：Q_ARG(object, datetime) 在 PySide6 QueuedConnection 下找不到 QMetaType 致 worker 线程静默崩溃，改为 Q_ARG(str) 传时间字符串]]></description>
+      <enclosure
+        url="https://github.com/Tsing-gu/worktime-tracker/releases/download/v0.14.4/WorkTimeTracker.dmg"
+        length="93074493"
+        sparkle:edSignature=""/>
+    </item>
+    <item>
       <title>版本 0.14.3</title>
       <pubDate>Sun, 27 Jul 2026 11:00:00 +0800</pubDate>
       <sparkle:version>34</sparkle:version>
