@@ -434,7 +434,13 @@ class CalendarHistoryDialog(QtWidgets.QDialog):
             self.service.manual_record(wd, start_str, end_str)
             self.load_data()
         except ValueError as e:
-            QtWidgets.QMessageBox.warning(self, "格式错误", str(e))
+            box = QtWidgets.QMessageBox(
+                QtWidgets.QMessageBox.Warning, "格式错误", str(e),
+                QtWidgets.QMessageBox.Ok, self)
+            for btn in box.buttons():
+                btn.setAutoDefault(False)
+                btn.setFocusPolicy(QtCore.Qt.NoFocus)
+            box.show()
 
     def _input_dialog(self, label_text: str, default_text: str, on_accepted):
         """自定义文本输入对话框（非模态），确认后回调 on_accepted(text)。"""

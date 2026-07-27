@@ -352,7 +352,7 @@ class WorktimeService:
             return PeriodStats(is_rest=True)
         period_start, period_end = period
         records = self.worktime_repo.get_range(period_start, period_end)
-        return calc.period_stats(today, records, now=datetime.now())
+        return calc.period_stats(today, records, now=datetime.now(), period=period)
 
     # ─── 月统计 ────────────────────────────────────────────
 

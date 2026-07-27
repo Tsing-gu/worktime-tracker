@@ -49,3 +49,4 @@ build_icon.iconset/
 
 # 用户本地配置（若有）
 config.local.py
+.obsidian/

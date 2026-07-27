@@ -15,7 +15,7 @@ from typing import Optional, List
 from src.data.models import WeekStats, MonthStats, TodayStatus, PeriodStats
 from src.core.date_utils import (
     get_week_range, get_month_range, is_workday, is_rest_day,
-    get_period_range, get_previous_workday,
+    get_period_range, get_previous_workday, build_holiday_index,
 )
 
 
@@ -43,7 +43,7 @@ class WorktimeCalculator:
         self.holiday_auto_exclude = holiday_auto_exclude
         self.weekly_work_days = weekly_work_days
 
-    def period_stats(self, today: date, records: list, now: datetime = None) -> PeriodStats:
+    def period_stats(self, today: date, records: list, now: datetime = None, period=None) -> PeriodStats:
         """计算本期工时统计。
 
         本期 = 两个连续非工作日段之间的工作日区间。
@@ -51,7 +51,8 @@ class WorktimeCalculator:
         if now is None:
             now = datetime.now()
 
-        period = get_period_range(today, self.holidays, self.weekly_work_days)
+        if period is None:
+            period = get_period_range(today, self.holidays, self.weekly_work_days)
         if period is None:
             return PeriodStats(is_rest=True)
 
@@ -228,10 +229,13 @@ class WorktimeCalculator:
         worked_hours = 0.0
         hours_before_today = 0.0
 
+        h_index = build_holiday_index(self.holidays)
+        rec_index = {r["work_date"]: r for r in records}
+
         d = start
         while d <= end:
-            if is_workday(d, self.holidays, self.weekly_work_days):
-                rec = next((r for r in records if r["work_date"] == d.isoformat()), None)
+            if is_workday(d, h_index, self.weekly_work_days):
+                rec = rec_index.get(d.isoformat())
                 is_leave = rec and rec.get("leave_type") and rec["leave_type"] != "none"
                 if is_leave:
                     pass
@@ -257,8 +261,8 @@ class WorktimeCalculator:
         remaining_days = 0
         d = today
         while d <= end:
-            if is_workday(d, self.holidays, self.weekly_work_days):
-                rec = next((r for r in records if r["work_date"] == d.isoformat()), None)
+            if is_workday(d, h_index, self.weekly_work_days):
+                rec = rec_index.get(d.isoformat())
                 is_leave = rec and rec.get("leave_type") and rec["leave_type"] != "none"
                 if not is_leave:
                     remaining_days += 1

@@ -100,12 +100,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
     @staticmethod
     def _msg_box(icon, parent, title, text, buttons=QtWidgets.QMessageBox.Ok):
-        """封装 QMessageBox，禁用 autoDefault + NoFocus，修复按钮需点两次。"""
+        """封装 QMessageBox，禁用 autoDefault + NoFocus，修复按钮需点两次。非模态 show()。"""
         box = QtWidgets.QMessageBox(icon, title, text, buttons, parent)
         for btn in box.buttons():
             btn.setAutoDefault(False)
             btn.setFocusPolicy(QtCore.Qt.NoFocus)
-        return box.exec()
+        box.show()
+        return box
 
     @staticmethod
     def _msg_information(parent, title, text):

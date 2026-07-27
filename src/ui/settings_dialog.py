@@ -17,6 +17,8 @@ settings_dialog - 设置弹窗
 
 from PySide6 import QtWidgets, QtCore
 
+import threading
+
 from src.config import (
     SETTING_DAILY_REQUIRED_HOURS,
     SETTING_WEEKLY_WORK_DAYS,
@@ -40,6 +42,23 @@ class SettingsDialog(QtWidgets.QDialog):
     从传入的 settings dict 读取当前设置值填充表单，
     用户确认后通过 get_values() 返回更新值字典。
     """
+
+    @staticmethod
+    def _msg(icon, parent, title, text):
+        """非模态 QMessageBox 提示。"""
+        box = QtWidgets.QMessageBox(icon, title, text, QtWidgets.QMessageBox.Ok, parent)
+        for btn in box.buttons():
+            btn.setAutoDefault(False)
+            btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        box.show()
+
+    @staticmethod
+    def _msg_info(parent, title, text):
+        SettingsDialog._msg(QtWidgets.QMessageBox.Information, parent, title, text)
+
+    @staticmethod
+    def _msg_warn(parent, title, text):
+        SettingsDialog._msg(QtWidgets.QMessageBox.Warning, parent, title, text)
 
     def __init__(self, settings: dict, parent=None):
         """
@@ -192,7 +211,7 @@ class SettingsDialog(QtWidgets.QDialog):
     def _on_only_office_toggled(self, state):
         """勾选「只记录在公司时间」时，若办公网络未设置则提示并阻止勾选。"""
         if state == QtCore.Qt.Checked and not self._office_domain:
-            QtWidgets.QMessageBox.warning(
+            self._msg_warn(
                 self, "无法启用",
                 "请先在下方「办公网络」处记录办公网络，才能启用此功能。"
             )
@@ -205,20 +224,34 @@ class SettingsDialog(QtWidgets.QDialog):
             self.close()
             parent.on_check_update()
         else:
-            QtWidgets.QMessageBox.information(self, "检查更新", "请在主界面托盘菜单中检查更新")
+            self._msg_info(self, "检查更新", "请在主界面托盘菜单中检查更新")
 
     def _on_record_office(self):
-        """检测当前网络的 DHCP domain_search，记录为办公网络域名。"""
-        from src.utils.system import get_network_status
+        """检测当前网络的 DHCP domain_search，记录为办公网络域名（子线程执行避免阻塞）。"""
+        self.record_office_btn.setEnabled(False)
+        self.record_office_btn.setText("检测中...")
 
-        status = get_network_status()
-        domain = status.get("domain", "")
+        def worker():
+            from src.utils.system import get_network_status
+            status = get_network_status()
+            domain = status.get("domain", "")
+            QtCore.QMetaObject.invokeMethod(self, "_on_record_office_result",
+                                            QtCore.Qt.QueuedConnection,
+                                            QtCore.Q_ARG(str, domain))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    @QtCore.Slot(str)
+    def _on_record_office_result(self, domain):
+        """网络检测完成，在主线程处理结果。"""
+        self.record_office_btn.setEnabled(True)
+        self.record_office_btn.setText("记录当前网络为办公网络")
         if not domain:
-            QtWidgets.QMessageBox.warning(self, "记录失败", "未能检测到当前网络的搜索域，请确保已连接 WiFi。")
+            self._msg_warn(self, "记录失败", "未能检测到当前网络的搜索域，请确保已连接 WiFi。")
             return
         self.office_domain_label.setText(domain)
         self.office_domain_label.setStyleSheet(f"color: {get_theme()['green']};")
         self._office_domain = domain
-        QtWidgets.QMessageBox.information(
+        self._msg_info(
             self, "已记录", f"已将「{domain}」记录为办公网络域名。\n点击「确定」保存设置后生效。"
         )

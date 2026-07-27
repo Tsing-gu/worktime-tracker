@@ -65,7 +65,12 @@ def get_month_range(dt: date) -> Tuple[date, date]:
     return start, end
 
 
-def is_workday(dt: date, holidays: list, weekly_work_days: int = 5) -> bool:
+def build_holiday_index(holidays: list) -> dict:
+    """将节假日列表构建为 dict 索引，O(1) 查找。"""
+    return {h["date"]: h for h in holidays}
+
+
+def is_workday(dt: date, holidays, weekly_work_days: int = 5) -> bool:
     """判断指定日期是否为工作日。
 
     周末 + 非调休 → 非工作日
@@ -74,7 +79,7 @@ def is_workday(dt: date, holidays: list, weekly_work_days: int = 5) -> bool:
 
     Args:
         dt:               日期
-        holidays:         节假日列表（dict 列表，含 date/is_off_day）
+        holidays:         节假日列表（list）或索引（dict，date→holiday）
         weekly_work_days: 每周工作天数（默认 5）
 
     Returns:
@@ -92,7 +97,7 @@ def is_workday(dt: date, holidays: list, weekly_work_days: int = 5) -> bool:
     return dt.weekday() < weekly_work_days
 
 
-def is_rest_day(dt: date, holidays: list, weekly_work_days: int = 5) -> bool:
+def is_rest_day(dt: date, holidays, weekly_work_days: int = 5) -> bool:
     """判断指定日期是否为休息日（非工作日）。"""
     return not is_workday(dt, holidays, weekly_work_days)
 
@@ -110,20 +115,21 @@ def get_period_range(today: date, holidays: list, weekly_work_days: int = 5) -> 
     Returns:
         (start, end) 元组，或 None（今天是非工作日）
     """
-    if is_rest_day(today, holidays, weekly_work_days):
+    h_index = build_holiday_index(holidays)
+    if is_rest_day(today, h_index, weekly_work_days):
         return None
 
     start = today
     while start > today - timedelta(days=365):
         prev = start - timedelta(days=1)
-        if is_rest_day(prev, holidays, weekly_work_days):
+        if is_rest_day(prev, h_index, weekly_work_days):
             break
         start = prev
 
     end = today
     while end < today + timedelta(days=365):
         nxt = end + timedelta(days=1)
-        if is_rest_day(nxt, holidays, weekly_work_days):
+        if is_rest_day(nxt, h_index, weekly_work_days):
             break
         end = nxt
 
@@ -143,17 +149,20 @@ def get_previous_workday(
     Returns:
         前一个工作日 date，或 None
     """
+    h_index = build_holiday_index(holidays)
     dt = today - timedelta(days=1)
     for _ in range(30):
-        if is_workday(dt, holidays, weekly_work_days):
+        if is_workday(dt, h_index, weekly_work_days):
             return dt
         dt -= timedelta(days=1)
     return None
 
 
-def _find_holiday(dt: date, holidays: list) -> Optional[dict]:
-    """从节假日列表中查找指定日期。"""
+def _find_holiday(dt: date, holidays) -> Optional[dict]:
+    """从节假日中查找指定日期。holidays 可以是 list 或 dict 索引。"""
     dt_str = dt.isoformat()
+    if isinstance(holidays, dict):
+        return holidays.get(dt_str)
     for h in holidays:
         if h["date"] == dt_str:
             return h
