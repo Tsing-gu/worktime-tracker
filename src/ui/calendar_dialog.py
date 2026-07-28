@@ -19,7 +19,6 @@ from datetime import datetime, date, timedelta
 from PySide6 import QtWidgets, QtCore, QtGui
 
 from src.config import SETTING_DAILY_REQUIRED_HOURS, LEAVE_TYPES
-from src.services.worktime_service import WorktimeService
 from src.utils.date_utils import compute_work_date
 from src.ui.leave_dialog import LeaveDialogUI
 from src.ui.theme import get_theme
@@ -102,18 +101,20 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
     以及当月数据导出。
     """
 
-    def __init__(self, parent=None, service: WorktimeService = None):
+    def __init__(self, parent=None, service=None):
         """
         初始化日历弹窗。
 
         Args:
             parent:  父窗口
-            service: WorktimeService 实例（用于数据操作）
+            service: WorktimeService 实例（必须由调用方传入，UI 层不自行创建）
         """
         super().__init__(parent)
         self.setWindowTitle("日历")
         self.setMinimumSize(820, 660)
-        self.service = service or WorktimeService()
+        if service is None:
+            raise ValueError("CalendarHistoryDialogUI 必须传入 service 实例")
+        self.service = service
         self._pending_sub = None  # 当前非模态子弹窗引用，防止 GC
 
         from src.ui.theme import ThemeManagerUI

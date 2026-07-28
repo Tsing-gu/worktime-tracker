@@ -38,6 +38,7 @@ from src.config import (
     HOLIDAY_API_URLS,
     HOLIDAY_CACHE_FILE,
 )
+from src.data.database import DT_FORMAT
 from src.data.models import TodayStatus, PeriodStats, WeekStats
 from src.data.settings_repo import SettingsRepository
 from src.data.activity_repo import ActivityRepository
@@ -46,9 +47,9 @@ from src.data.holiday_repo import HolidayRepository
 from src.core.tracker import WorkTrackerCore, PollResult
 from src.core.calculator import WorktimeCalculatorCore
 from src.services.holiday_service import HolidayService
-from src.utils.date_utils import compute_work_date
+from src.utils.date_utils import compute_work_date, get_period_range, get_month_range
 from src.services.export_service import ExportService
-from src.utils.system import get_first_active_from_pmset, get_network_status
+from src.utils.system import get_first_active_from_pmset, get_network_status, get_hid_idle_seconds, is_currently_active, get_last_active_time
 
 
 class WorktimeService:
@@ -124,14 +125,14 @@ class WorktimeService:
         existing_end = None
         if daily:
             if daily.get("start_time"):
-                existing_start = datetime.strptime(daily["start_time"], "%Y-%m-%d %H:%M:%S")
+                existing_start = datetime.strptime(daily["start_time"], DT_FORMAT)
             existing_source = daily.get("source")
             if daily.get("end_time"):
-                existing_end = datetime.strptime(daily["end_time"], "%Y-%m-%d %H:%M:%S")
+                existing_end = datetime.strptime(daily["end_time"], DT_FORMAT)
 
         # 从 activity_events 查最早活跃记录
         if only_office:
-            first_active = self.activity_repo.get_first_active_at_office(work_date)
+            first_active = self.activity_repo.get_first_active(work_date, at_office_only=True)
         else:
             first_active = self.activity_repo.get_first_active(work_date)
 
@@ -158,7 +159,6 @@ class WorktimeService:
         now = datetime.now()
 
         # 读取当前 HID 状态（跨天补录用，需在 reset 之前读取）
-        from src.utils.system import get_hid_idle_seconds, is_currently_active, get_network_status, get_last_active_time
         idle = get_hid_idle_seconds()
 
         # 跨天检测
@@ -194,9 +194,9 @@ class WorktimeService:
         daily_source = "auto"
         if daily:
             if daily.get("start_time"):
-                start_time = datetime.strptime(daily["start_time"], "%Y-%m-%d %H:%M:%S")
+                start_time = datetime.strptime(daily["start_time"], DT_FORMAT)
             if daily.get("end_time"):
-                daily_end_time = datetime.strptime(daily["end_time"], "%Y-%m-%d %H:%M:%S")
+                daily_end_time = datetime.strptime(daily["end_time"], DT_FORMAT)
             daily_source = daily.get("source", "auto")
 
         # 如果 DB 中无上班记录且 tracker 未记录上班 → 调用 ensure_start 补录
@@ -204,7 +204,7 @@ class WorktimeService:
             self.ensure_start(at_office=at_office)
             daily = self.worktime_repo.get(work_date)
             if daily and daily.get("start_time"):
-                start_time = datetime.strptime(daily["start_time"], "%Y-%m-%d %H:%M:%S")
+                start_time = datetime.strptime(daily["start_time"], DT_FORMAT)
 
         # 读取设置
         off_threshold = float(self.settings_repo.get(SETTING_OFF_THRESHOLD_MINUTES, "60"))
@@ -256,7 +256,7 @@ class WorktimeService:
         if daily.get("source") == "manual":
             return
 
-        start_time = datetime.strptime(daily["start_time"], "%Y-%m-%d %H:%M:%S")
+        start_time = datetime.strptime(daily["start_time"], DT_FORMAT)
         only_office = self.settings_repo.get(SETTING_ONLY_OFFICE_TIME, "1") == "1"
 
         if only_office:
@@ -304,7 +304,7 @@ class WorktimeService:
         if not daily or not daily.get("start_time"):
             return PollResult(event="no_start")
 
-        start_time = datetime.strptime(daily["start_time"], "%Y-%m-%d %H:%M:%S")
+        start_time = datetime.strptime(daily["start_time"], DT_FORMAT)
         result = self.tracker.manual_off_work(start_time, now)
 
         daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
@@ -345,7 +345,6 @@ class WorktimeService:
         """获取本期工时统计。"""
         today = compute_work_date(datetime.now())
         calc = self._get_calculator()
-        from src.utils.date_utils import get_period_range
         holidays = self.holiday_repo.get_all()
         period = get_period_range(today, holidays, calc.weekly_work_days)
         if period is None:
@@ -359,7 +358,6 @@ class WorktimeService:
     def get_month_stats(self) -> PeriodStats:
         """获取本月工时统计。"""
         today = compute_work_date(datetime.now())
-        from src.utils.date_utils import get_month_range
         month_start, month_end = get_month_range(today)
         records = self.worktime_repo.get_range(month_start, month_end)
         return self._get_calculator().month_stats(today, records, now=datetime.now())
@@ -396,7 +394,7 @@ class WorktimeService:
         """确认前一天的下班时间并持久化。"""
         daily = self.worktime_repo.get(prev_date)
         if daily and daily.get("start_time"):
-            start_time = datetime.strptime(daily["start_time"], "%Y-%m-%d %H:%M:%S")
+            start_time = datetime.strptime(daily["start_time"], DT_FORMAT)
             if end_time < start_time:
                 end_time += timedelta(days=1)
             total = (end_time - start_time).total_seconds() / 3600.0
@@ -469,7 +467,7 @@ class WorktimeService:
 
     def clear_record(self, work_date_str: str):
         """删除指定日期的工时记录。"""
-        self.worktime_repo.delete(work_date_str)
+        self.worktime_repo.delete(date.fromisoformat(work_date_str))
 
     # ─── 设置读写 ──────────────────────────────────────────
 
@@ -516,6 +514,11 @@ class WorktimeService:
     def get_exporter(self) -> ExportService:
         """获取导出器实例。"""
         return ExportService(self.worktime_repo)
+
+    def get_update_service(self) -> "UpdateService":
+        """获取更新服务实例（注入 settings_repo，避免 UI 层触碰 data 层对象）。"""
+        from src.services.update_service import UpdateService
+        return UpdateService(self.settings_repo)
 
     # ─── 内部工具 ──────────────────────────────────────────
 

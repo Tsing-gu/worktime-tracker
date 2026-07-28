@@ -11,7 +11,9 @@ worktime_repo - 每日工时仓储
 from datetime import datetime, date
 from typing import Optional, List
 
-from src.data.database import Repository
+from src.data.database import Repository, _UNSET
+
+_DT_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 
 class DailyWorktimeRepository(Repository):
@@ -35,23 +37,23 @@ class DailyWorktimeRepository(Repository):
     def upsert(
         self,
         work_dt: date,
-        start_time: datetime = None,
-        end_time: datetime = None,
-        total_hours: float = None,
-        required_hours: float = None,
-        leave_type: str = None,
-        is_confirmed: int = None,
-        has_anomaly: int = None,
-        anomaly_note: str = None,
-        source: str = None,
-        note: str = None,
+        start_time: datetime = _UNSET,
+        end_time: datetime = _UNSET,
+        total_hours: float = _UNSET,
+        required_hours: float = _UNSET,
+        leave_type: str = _UNSET,
+        is_confirmed: int = _UNSET,
+        has_anomaly: int = _UNSET,
+        anomaly_note: str = _UNSET,
+        source: str = _UNSET,
+        note: str = _UNSET,
     ):
         """插入或更新每日工时记录（upsert 语义）。
 
-        仅更新传入非 None 的字段；已存在的记录做部分更新，新记录做插入。
+        使用 _UNSET 哨兵区分"未传入"（不更新该字段）与 None/NULL（置空该字段）。
+        显式传 None 会将字段置为 NULL。
         """
-        start_str = start_time.strftime("%Y-%m-%d %H:%M:%S") if start_time else None
-        end_str = end_time.strftime("%Y-%m-%d %H:%M:%S") if end_time else None
+        start_str = start_time.strftime(_DT_FORMAT) if isinstance(start_time, datetime) else (_UNSET if start_time is _UNSET else None)
 
         with self.transaction() as conn:
             c = conn.cursor()
@@ -62,15 +64,16 @@ class DailyWorktimeRepository(Repository):
                 updates = []
                 params = []
                 for col, val in [
-                    ("start_time", start_str), ("end_time", end_str),
+                    ("start_time", start_str), ("end_time", end_time),
                     ("total_hours", total_hours), ("required_hours", required_hours),
                     ("leave_type", leave_type), ("is_confirmed", is_confirmed),
                     ("has_anomaly", has_anomaly), ("anomaly_note", anomaly_note),
                     ("source", source), ("note", note),
                 ]:
-                    if val is not None:
+                    if val is not _UNSET:
                         updates.append(f"{col} = ?")
-                        params.append(val)
+                        v = val.strftime(_DT_FORMAT) if isinstance(val, datetime) else val
+                        params.append(v)
                 if updates:
                     params.append(work_dt.isoformat())
                     c.execute(
@@ -78,15 +81,24 @@ class DailyWorktimeRepository(Repository):
                         params,
                     )
             else:
+                end_str = end_time.strftime(_DT_FORMAT) if isinstance(end_time, datetime) else None
                 c.execute(
                     """INSERT INTO daily_worktime
                     (work_date, start_time, end_time, total_hours, required_hours,
                      leave_type, is_confirmed, has_anomaly, anomaly_note, source, note)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
-                        work_dt.isoformat(), start_str, end_str, total_hours, required_hours,
-                        leave_type, is_confirmed or 0, has_anomaly or 0, anomaly_note,
-                        source or "auto", note,
+                        work_dt.isoformat(),
+                        start_str if start_str is not _UNSET else None,
+                        end_str if end_str is not _UNSET else None,
+                        total_hours if total_hours is not _UNSET else None,
+                        required_hours if required_hours is not _UNSET else None,
+                        leave_type if leave_type is not _UNSET else None,
+                        is_confirmed if is_confirmed is not _UNSET else 0,
+                        has_anomaly if has_anomaly is not _UNSET else 0,
+                        anomaly_note if anomaly_note is not _UNSET else None,
+                        source if source is not _UNSET else "auto",
+                        note if note is not _UNSET else None,
                     ),
                 )
 
@@ -109,19 +121,19 @@ class DailyWorktimeRepository(Repository):
         rows = c.fetchall()
         return [dict(r) for r in rows]
 
-    def delete(self, work_date_str: str):
+    def delete(self, work_dt: date):
         """删除指定日期的工时记录。
 
         Args:
-            work_date_str: 工作日日期字符串 (YYYY-MM-DD)
+            work_dt: 工作日日期
         """
         with self.transaction() as conn:
-            conn.execute("DELETE FROM daily_worktime WHERE work_date = ?", (work_date_str,))
+            conn.execute("DELETE FROM daily_worktime WHERE work_date = ?", (work_dt.isoformat(),))
 
     def clear_end_time(self, work_dt: date):
         """清除下班时间，恢复为"工作中"状态。
 
-        将 end_time 和 total_hours 置 NULL，替代裸 SQL UPDATE。
+        将 end_time 和 total_hours 置 NULL。
 
         Args:
             work_dt: 工作日日期

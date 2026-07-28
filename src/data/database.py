@@ -17,10 +17,17 @@ database - SQLite 数据层基类
 
 import sqlite3
 import os
+import threading
 from pathlib import Path
 from contextlib import contextmanager
 
 from src.config import DB_PATH, DEFAULT_SETTINGS
+
+# datetime 存入 SQLite 的统一格式串
+DT_FORMAT = "%Y-%m-%d %H:%M:%S"
+
+# 哨兵：区分"未传入参数"（不更新字段）与 None（置 NULL）
+_UNSET = object()
 
 
 class Repository:
@@ -32,35 +39,42 @@ class Repository:
     def __init__(self, db_path: str = DB_PATH):
         self._db_path = db_path
         self._conn: sqlite3.Connection = None
+        self._lock = threading.Lock()
 
     def _get_conn(self) -> sqlite3.Connection:
         """懒加载 SQLite 连接（row_factory=Row），复用连接。
 
         check_same_thread=False 允许子线程使用同一连接，
         配合 WAL 模式实现多读 + 一写的并发安全。
+        使用 threading.Lock 保证懒加载的线程安全。
         """
         if self._conn is None:
-            Path(os.path.dirname(self._db_path)).mkdir(parents=True, exist_ok=True)
-            self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
-            self._conn.row_factory = sqlite3.Row
-            self._conn.execute("PRAGMA journal_mode=WAL")
+            with self._lock:
+                if self._conn is None:
+                    Path(os.path.dirname(self._db_path)).mkdir(parents=True, exist_ok=True)
+                    self._conn = sqlite3.connect(self._db_path, check_same_thread=False)
+                    self._conn.row_factory = sqlite3.Row
+                    self._conn.execute("PRAGMA journal_mode=WAL")
         return self._conn
 
     @contextmanager
     def transaction(self):
         """事务上下文管理器：自动 commit / rollback。
 
+        使用 threading.Lock 保证写事务的串行化，避免多线程并发写冲突。
+
         with self.transaction() as conn:
             conn.execute(...)
             conn.execute(...)
         """
         conn = self._get_conn()
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
+        with self._lock:
+            try:
+                yield conn
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
 
     def close(self):
         """关闭连接。"""
@@ -94,8 +108,6 @@ class Repository:
             end_time DATETIME,
             total_hours REAL,
             required_hours REAL,
-            is_holiday INTEGER DEFAULT 0,
-            is_adjusted_workday INTEGER DEFAULT 0,
             leave_type TEXT,
             is_confirmed INTEGER DEFAULT 0,
             has_anomaly INTEGER DEFAULT 0,
@@ -118,14 +130,22 @@ class Repository:
         c.execute("CREATE INDEX IF NOT EXISTS idx_activity_work_date ON activity_events(work_date)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_activity_ts ON activity_events(timestamp)")
 
-        # ── migration: 给老库 activity_events 补 at_office 字段 ──
-        c.execute("PRAGMA table_info(activity_events)")
-        act_cols = {row[1] for row in c.fetchall()}
-        if "at_office" not in act_cols:
-            c.execute("ALTER TABLE activity_events ADD COLUMN at_office INTEGER DEFAULT 0")
+        # ── migration: 老库表结构补列（新库已含完整列，跳过）──
+        _ensure_column(c, "activity_events", "at_office", "INTEGER DEFAULT 0")
 
         for key, value in DEFAULT_SETTINGS.items():
             c.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))
 
         conn.commit()
         conn.close()
+
+
+def _ensure_column(cursor, table: str, column: str, definition: str):
+    """检查表是否有指定列，没有则 ALTER TABLE ADD COLUMN。
+
+    用于老库迁移，新库 CREATE TABLE 已含完整列不会触发。
+    """
+    cursor.execute(f"PRAGMA table_info({table})")
+    existing_cols = {row[1] for row in cursor.fetchall()}
+    if column not in existing_cols:
+        cursor.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")

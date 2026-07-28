@@ -17,6 +17,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from src.config import ACTIVE_THRESHOLD_SECONDS, AWAY_THRESHOLD_SECONDS
+from src.utils.date_utils import compute_work_date
 
 
 # ─── HID 空闲时间 ─────────────────────────────────────────────
@@ -48,12 +49,15 @@ def is_currently_active(idle_seconds: float, active_threshold: float = ACTIVE_TH
     """
     判断当前是否有键鼠活动。
 
+    读取失败（负值）视为无活动，返回 False，调用方应结合 get_hid_idle_seconds
+    的 -1.0 哨兵值单独决策传感器故障场景。
+
     Args:
         idle_seconds:      HIDIdleTime（秒）
         active_threshold:  活动判定阈值（秒），空闲 < 此值视为正在操作
 
     Returns:
-        True=有活动, False=空闲
+        True=有活动, False=空闲或读取失败
     """
     return 0 <= idle_seconds < active_threshold
 
@@ -62,12 +66,15 @@ def is_user_away(idle_seconds: float, away_threshold: float = AWAY_THRESHOLD_SEC
     """
     判断用户是否已离开电脑。
 
+    读取失败（负值）视为未离开，返回 False，避免传感器故障时误判下班。
+    调用方应结合 get_hid_idle_seconds 的 -1.0 哨兵值单独决策。
+
     Args:
         idle_seconds:    HIDIdleTime（秒）
         away_threshold:  离开判定阈值（秒），空闲 > 此值视为离开
 
     Returns:
-        True=用户已离开, False=仍在使用
+        True=用户已离开, False=仍在使用或读取失败
     """
     return idle_seconds > away_threshold
 
@@ -124,8 +131,9 @@ def get_network_status(office_domain: str = "") -> dict:
         if "domain_search" in line:
             m = re.search(r"\{(.+?)\}", line)
             if m:
-                domain = m.group(1).strip()
-                return {"at_office": domain == office_domain if office_domain else False, "domain": domain}
+                domains = m.group(1).split()
+                at_office = office_domain in domains if office_domain else False
+                return {"at_office": at_office, "domain": " ".join(domains)}
     return {"at_office": False, "domain": ""}
 
 
@@ -165,7 +173,6 @@ def get_first_active_from_pmset(work_date, work_start_floor: str = "06:00") -> O
         if m:
             ts = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
             # 验证归属工作日是否匹配
-            from src.utils.date_utils import compute_work_date
             work_dt = compute_work_date(ts)
             if work_dt != work_date:
                 continue
@@ -190,6 +197,9 @@ def send_notification(title: str, message: str, sound: str = "Glass"):
         message: 通知正文
         sound:   通知声音名称（默认 "Glass"）
     """
+    # 转义 AppleScript 字符串中的双引号，防止语法注入
+    title = title.replace("\\", "\\\\").replace('"', '\\"')
+    message = message.replace("\\", "\\\\").replace('"', '\\"')
     try:
         subprocess.run(
             ["osascript", "-e",

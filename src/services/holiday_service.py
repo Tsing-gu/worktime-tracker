@@ -84,6 +84,8 @@ class HolidayService:
         如果 DB 中已有该年数据 → 直接返回；
         否则 → 从 API 获取并写入 DB。
 
+        跨年场景（12月底~1月初）自动确保下一年数据也已加载。
+
         Args:
             year: 年份
 
@@ -97,9 +99,21 @@ class HolidayService:
                 y = int(h["date"][:4])
                 years_in_db.add(y)
             if year in years_in_db:
+                # 确保下一年也已加载（跨年场景）
+                next_year = year + 1
+                if next_year not in years_in_db:
+                    self.fetch(next_year)
+                    existing = self._repo.get_all()
                 return existing
 
-        return self.fetch(year)
+        result = self.fetch(year)
+        # 跨年时同时获取下一年
+        next_year = year + 1
+        next_existing = self._repo.get_all()
+        next_in_db = {int(h["date"][:4]) for h in next_existing}
+        if next_year not in next_in_db:
+            self.fetch(next_year)
+        return result
 
     def is_holiday(self, dt: date) -> bool:
         """判断指定日期是否为放假日。"""

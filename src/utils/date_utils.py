@@ -90,10 +90,8 @@ def is_workday(dt: date, holidays, weekly_work_days: int = 5) -> bool:
         if holiday["is_off_day"] == 0:
             return True
         return False
-    if weekly_work_days >= 7:
-        return True
-    if weekly_work_days <= 1:
-        return dt.weekday() < weekly_work_days
+    # 周末非调休 → 按 weekly_work_days 判定（>=7 全周工作，<=1 只看周一）
+    weekly_work_days = max(0, min(weekly_work_days, 7))
     return dt.weekday() < weekly_work_days
 
 

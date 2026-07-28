@@ -12,7 +12,8 @@ calculator - 工时计算
 from datetime import datetime, date, timedelta
 from typing import Optional, List
 
-from src.data.models import WeekStats, MonthStats, TodayStatus, PeriodStats
+from src.data.models import WeekStats, TodayStatus, PeriodStats
+from src.data.database import DT_FORMAT
 from src.utils.date_utils import (
     get_week_range, get_month_range, is_workday, is_rest_day,
     get_period_range, get_previous_workday, build_holiday_index,
@@ -75,44 +76,15 @@ class WorktimeCalculatorCore:
             now = datetime.now()
 
         week_start_date, week_end_date = get_week_range(today, self.weekly_work_days)
+        stats = self._iterate_range(week_start_date, week_end_date, today, records, now)
 
-        total_workdays = 0
-        worked_days = 0
-        worked_hours = 0.0
-        total_required_hours = 0.0
-        today_required = self.daily_required
+        total_workdays = stats["total_workdays"]
+        worked_days = stats["worked_days"]
+        worked_hours = stats["worked_hours"]
+        hours_before_today = stats["hours_before_today"]
+        total_required_hours = total_workdays * self.daily_required
 
-        d = week_start_date
-        while d <= week_end_date:
-            if d > today:
-                break
-            if is_workday(d, self.holidays, self.weekly_work_days):
-                rec = next((r for r in records if r["work_date"] == d.isoformat()), None)
-                if rec:
-                    if rec.get("leave_type") and rec["leave_type"] != "none":
-                        pass
-                    else:
-                        total_workdays += 1
-                        rec_required = rec.get("required_hours")
-                        if rec_required is not None:
-                            total_required_hours += rec_required
-                        else:
-                            total_required_hours += self.daily_required
-                        if d == today:
-                            today_required = rec_required if rec_required is not None else self.daily_required
-                        start_str = rec.get("start_time")
-                        if start_str:
-                            worked_days += 1
-                            if rec.get("total_hours") is not None and rec.get("end_time"):
-                                worked_hours += rec["total_hours"]
-                            elif not rec.get("end_time"):
-                                start = datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S")
-                                worked_hours += (now - start).total_seconds() / 3600.0
-                else:
-                    total_workdays += 1
-                    total_required_hours += self.daily_required
-            d += timedelta(days=1)
-
+        # remaining_days/remaining_needed 以本周为口径计算
         remaining_days = max(0, total_workdays - worked_days)
         remaining_needed = max(0, total_required_hours - worked_hours)
         remaining_per_day = remaining_needed / remaining_days if remaining_days > 0 else 0
@@ -124,7 +96,7 @@ class WorktimeCalculatorCore:
             total_workdays=total_workdays,
             worked_days=worked_days,
             worked_hours=round(worked_hours, 2),
-            daily_required=today_required,
+            daily_required=self.daily_required,
             remaining_days=remaining_days,
             remaining_needed=round(remaining_needed, 2),
             remaining_per_day=round(remaining_per_day, 2),
@@ -146,8 +118,8 @@ class WorktimeCalculatorCore:
 
         start_str = daily_record.get("start_time")
         end_str = daily_record.get("end_time")
-        start_time = datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S") if start_str else None
-        end_time = datetime.strptime(end_str, "%Y-%m-%d %H:%M:%S") if end_str else None
+        start_time = datetime.strptime(start_str, DT_FORMAT) if start_str else None
+        end_time = datetime.strptime(end_str, DT_FORMAT) if end_str else None
 
         if start_time and not end_time:
             worked_hours = (now - start_time).total_seconds() / 3600.0
@@ -180,7 +152,7 @@ class WorktimeCalculatorCore:
 
         for a in activities:
             if a["is_active"]:
-                ts = datetime.strptime(a["timestamp"], "%Y-%m-%d %H:%M:%S")
+                ts = datetime.strptime(a["timestamp"], DT_FORMAT)
                 if ts.hour < 6:
                     return f"上班时间早于6:00（{ts.strftime('%H:%M')}）"
 
@@ -191,7 +163,7 @@ class WorktimeCalculatorCore:
         long_gaps = 0
         prev_active_ts = None
         for a in activities:
-            ts = datetime.strptime(a["timestamp"], "%Y-%m-%d %H:%M:%S")
+            ts = datetime.strptime(a["timestamp"], DT_FORMAT)
             if a["is_active"]:
                 if prev_active_ts:
                     gap = (ts - prev_active_ts).total_seconds()
@@ -226,6 +198,7 @@ class WorktimeCalculatorCore:
         """
         total_workdays = 0
         worked_days = 0
+        worked_days_before_today = 0
         worked_hours = 0.0
         hours_before_today = 0.0
 
@@ -246,10 +219,12 @@ class WorktimeCalculatorCore:
                             start_str = rec.get("start_time")
                             if start_str:
                                 worked_days += 1
+                                if d < today:
+                                    worked_days_before_today += 1
                                 if rec.get("total_hours") is not None and rec.get("end_time"):
                                     h = rec["total_hours"]
                                 elif not rec.get("end_time"):
-                                    start_dt = datetime.strptime(start_str, "%Y-%m-%d %H:%M:%S")
+                                    start_dt = datetime.strptime(start_str, DT_FORMAT)
                                     h = (now - start_dt).total_seconds() / 3600.0
                                 else:
                                     h = 0
@@ -271,6 +246,7 @@ class WorktimeCalculatorCore:
         return {
             "total_workdays": total_workdays,
             "worked_days": worked_days,
+            "worked_days_before_today": worked_days_before_today,
             "worked_hours": worked_hours,
             "hours_before_today": hours_before_today,
             "remaining_days": remaining_days,
@@ -289,7 +265,9 @@ class WorktimeCalculatorCore:
         remaining_days = stats["remaining_days"]
         remaining_per_day = remaining_needed / remaining_days if remaining_days > 0 else 0
         worked_days = stats["worked_days"]
-        daily_avg = stats["hours_before_today"] / (worked_days - 1) if worked_days > 1 else 0
+        worked_days_before_today = stats["worked_days_before_today"]
+        # 日均工时 = 今天之前的总工时 / 今天之前的已工作天数
+        daily_avg = stats["hours_before_today"] / worked_days_before_today if worked_days_before_today > 0 else 0
         progress = stats["worked_hours"] / target if target > 0 else 0
 
         return PeriodStats(

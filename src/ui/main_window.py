@@ -32,7 +32,6 @@ from src.config import (
 )
 from src.services.worktime_service import WorktimeService
 from src.services import notification_service
-from src.services.update_service import UpdateService
 from src.utils.paths import resource_path
 from src.utils.date_utils import compute_work_date
 from src.ui.theme import get_theme
@@ -76,7 +75,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
 
         # 唯一的业务层入口
         self.service = WorktimeService()
-        self.update_service = UpdateService(self.service.settings_repo)
+        self.update_service = self.service.get_update_service()
         self._tray_popup_menu = None  # 当前时长卡菜单
         self._update_checking = False  # 防止重复检查
         self._initialized = False  # service.init() 是否完成

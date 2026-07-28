@@ -128,12 +128,8 @@ class WorkTrackerCore:
 
         floor_h, floor_m = map(int, work_start_floor.split(":"))
 
-        # 优先级 1-2: 已有上班记录
+        # 优先级 1-2: 已有上班记录（无论 auto 还是 manual 都不覆盖）
         if existing_start:
-            if existing_source == "manual":
-                self._start_recorded = True
-                return None
-
             self._start_recorded = True
             return None
 
@@ -184,6 +180,9 @@ class WorkTrackerCore:
             off_threshold_minutes:   下班判定等待时长（分钟）
             off_time_floor:          下班判定时间下限 "HH:MM"
             daily_required_hours:     每日工时要求（小时）
+            at_office:               当前是否在公司内网（仅在 only_office=True 时生效，
+                                     用于下班侧网络门控）
+            only_office:             是否启用网络门控模式
 
         Returns:
             PollResult 实例
@@ -226,6 +225,8 @@ class WorkTrackerCore:
             office_away = only_office and not at_office
             if hid_away or office_away:
                 # HID 空闲超阈值 → off_time = 最后活动时间
+                #   注意: HID 读取失败(idle<0)时 get_last_active_time 返回 None，
+                #   off_time=None 会跳过下班判定 → 降级为仅靠 office_away 触发
                 # 离开公司网络 → off_time = 当前时间（HID 仍在活动）
                 off_time = last_active if hid_away else now
                 is_early_morning = now.hour < 6  # 凌晨时段（0:00~6:00，归属前一天工作日）

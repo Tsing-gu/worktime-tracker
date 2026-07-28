@@ -11,7 +11,7 @@ activity_repo - 活动事件仓储
 from datetime import datetime, date, timedelta
 from typing import List, Optional
 
-from src.data.database import Repository
+from src.data.database import Repository, DT_FORMAT
 from src.utils.date_utils import compute_work_date
 
 
@@ -35,7 +35,7 @@ class ActivityRepository(Repository):
                 "INSERT INTO activity_events (timestamp, idle_seconds, is_active, work_date, at_office) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (
-                    timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+                    timestamp.strftime(DT_FORMAT),
                     idle_seconds,
                     1 if is_active else 0,
                     work_date.isoformat(),
@@ -49,7 +49,7 @@ class ActivityRepository(Repository):
         Args:
             days: 保留天数（默认 14 天）
         """
-        cutoff = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d %H:%M:%S")
+        cutoff = (datetime.now() - timedelta(days=days)).strftime(DT_FORMAT)
         with self.transaction() as conn:
             conn.execute("DELETE FROM activity_events WHERE timestamp < ?", (cutoff,))
 
@@ -60,7 +60,7 @@ class ActivityRepository(Repository):
             work_dt: 工作日日期
 
         Returns:
-            dict 列表，每条包含 id/timestamp/idle_seconds/is_active/work_date
+            dict 列表，每条包含 id/timestamp/idle_seconds/is_active/work_date/at_office
         """
         conn = self._get_conn()
         c = conn.cursor()
@@ -71,48 +71,35 @@ class ActivityRepository(Repository):
         rows = c.fetchall()
         return [dict(r) for r in rows]
 
-    def get_first_active_at_office(self, work_dt: date) -> Optional[datetime]:
-        """获取指定工作日最早一条 active + at_office 的记录时间。
+    def get_first_active(self, work_dt: date, at_office_only: bool = False) -> Optional[datetime]:
+        """获取指定工作日最早一条 active 记录时间。
 
         Args:
-            work_dt: 工作日日期
+            work_dt:         工作日日期
+            at_office_only:  True=仅查在公司内网的记录, False=不筛选网络
 
         Returns:
             最早的活动时间，或 None
         """
         conn = self._get_conn()
         c = conn.cursor()
-        c.execute(
-            "SELECT timestamp FROM activity_events "
-            "WHERE work_date = ? AND is_active = 1 AND at_office = 1 "
-            "ORDER BY timestamp ASC LIMIT 1",
-            (work_dt.isoformat(),),
-        )
+        if at_office_only:
+            c.execute(
+                "SELECT timestamp FROM activity_events "
+                "WHERE work_date = ? AND is_active = 1 AND at_office = 1 "
+                "ORDER BY timestamp ASC LIMIT 1",
+                (work_dt.isoformat(),),
+            )
+        else:
+            c.execute(
+                "SELECT timestamp FROM activity_events "
+                "WHERE work_date = ? AND is_active = 1 "
+                "ORDER BY timestamp ASC LIMIT 1",
+                (work_dt.isoformat(),),
+            )
         row = c.fetchone()
         if row:
-            return datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S")
-        return None
-
-    def get_first_active(self, work_dt: date) -> Optional[datetime]:
-        """获取指定工作日最早一条 active 的记录时间（不筛选网络）。
-
-        Args:
-            work_dt: 工作日日期
-
-        Returns:
-            最早的活动时间，或 None
-        """
-        conn = self._get_conn()
-        c = conn.cursor()
-        c.execute(
-            "SELECT timestamp FROM activity_events "
-            "WHERE work_date = ? AND is_active = 1 "
-            "ORDER BY timestamp ASC LIMIT 1",
-            (work_dt.isoformat(),),
-        )
-        row = c.fetchone()
-        if row:
-            return datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S")
+            return datetime.strptime(row["timestamp"], DT_FORMAT)
         return None
 
     def get_last_active_at_office(self, work_dt: date) -> Optional[datetime]:
@@ -134,5 +121,5 @@ class ActivityRepository(Repository):
         )
         row = c.fetchone()
         if row:
-            return datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M:%S")
+            return datetime.strptime(row["timestamp"], DT_FORMAT)
         return None

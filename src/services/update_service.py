@@ -167,6 +167,8 @@ class UpdateService:
                 dmg_path = os.path.join(self._temp_dir, "worktime_update.dmg")
                 downloaded = 0
                 chunk = 512 * 1024
+                max_timeout_retries = 5
+                timeout_count = 0
                 with open(dmg_path, "wb") as f:
                     while True:
                         if self._cancelled:
@@ -186,7 +188,17 @@ class UpdateService:
                                 except OSError:
                                     pass
                                 return None
+                            timeout_count += 1
+                            if timeout_count > max_timeout_retries:
+                                print(f"[Update] 下载超时次数过多({max_timeout_retries})，放弃下载")
+                                f.close()
+                                try:
+                                    os.remove(dmg_path)
+                                except OSError:
+                                    pass
+                                return None
                             continue
+                        timeout_count = 0
                         if not buf:
                             break
                         f.write(buf)
@@ -226,13 +238,14 @@ class UpdateService:
 
         with open(updater_script, "w") as f:
             f.write(f"""#!/bin/bash
+set -e
 # 等待主进程完全退出
 sleep 2
 # 挂载 DMG
 hdiutil attach "{dmg_path}" -nobrowse -mountpoint "{mount_point}"
 # 等待挂载完成
 sleep 1
-# 替换 .app（重试 3 次）
+# 替换 .app（重试 3 次，rm 失败则退出）
 for i in 1 2 3; do
   rm -rf "{app_path}" && break
   sleep 1
