@@ -17,6 +17,11 @@ version - 版本管理 + CHANGELOG 自动更新
     - fixed:   修复缺陷 → bump PATCH
     - removed: 移除功能 → bump MINOR（正式版前不 bump MAJOR）
 
+版本说明书写规则:
+    只从用户角度描述改了什么、增加了什么功能或修了什么 bug，
+    不要提及具体的实现细节和代码修改（如函数名、变量名、重构手法等）。
+    用户关心的是"能做什么"和"修了什么问题"，而非"代码怎么改的"。
+
 版本号文件: 项目根目录 VERSION
 变更记录文件: 项目根目录 CHANGELOG.md
 
@@ -111,6 +116,10 @@ def record_change(change_type: str, description: str) -> str:
         1. 根据变更类型决定 bump 级别
         2. 更新 VERSION 文件
         3. 在 CHANGELOG.md 顶部追加变更条目
+
+    description 书写规则:
+        只从用户角度描述（能做什么/修了什么问题），
+        不提及具体实现细节和代码修改。
 
     注意：此函数仅用于开发环境，打包后调用会抛异常。
     """

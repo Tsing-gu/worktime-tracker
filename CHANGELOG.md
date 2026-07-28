@@ -1,10 +1,20 @@
 ## [0.15.2] - 2026-07-28
 
-- **修复**: core+service+ui 层全面审查修复：calculator daily_avg 分母 bug（worked_days-1→worked_days_before_today）、week_stats 重构调用 _iterate_range 消除重复、格式串统一 DT_FORMAT、tracker check_start_recorded 冗余分支合并、poll at_office 参数文档；service 层函数内 import 提到顶部、holiday_service 跨年自动获取下一年节假日、update_service 安装脚本加 set -e + socket.timeout 最大重试 5 次；UI 层 main_window 不再持有 settings_repo 引用改用 service.get_update_service()、calendar_dialog 禁止 UI 层自行实例化 WorktimeService
+- **修复**: 修复概览卡片"日均工时"在今天请假时显示为 0 的问题
+- **修复**: 修复跨年时下一年节假日不自动获取的问题
+- **修复**: 修复更新下载网络超时时无限重试的问题
+- **修复**: 修复自动更新安装脚本中途失败不退出的问题
+- **变更**: 优化日历页面的加载速度
+- **变更**: 优化主界面统计卡片的刷新性能
 
 ## [0.15.1] - 2026-07-28
 
-- **修复**: utils+data 层逻辑错误与边界遗漏修复：send_notification AppleScript 引号注入、get_network_status 多 domain 误判、encode_url 漏 query/fragment 编码及二次编码、is_workday 冗余分支简化、upsert 无法置 NULL（_UNSET 哨兵）、_get_conn 懒加载无线程锁、delete 参数类型不一致、get_first_active_at_office 合并；删除死代码 ActivityEvent/DailyWorktime/Holiday/MonthStats dataclass + daily_worktime 表死字段(is_holiday/is_adjusted_workday)；抽取 DT_FORMAT 常量 + _ensure_column 通用迁移函数
+- **修复**: 修复系统通知中包含双引号时通知发送失败的问题
+- **修复**: 修复连接公司内网含多个域名时"只记录在公司时间"功能误判的问题
+- **修复**: 修复导出文件名含中文时部分情况下编码错误的问题
+- **修复**: 修复清除下班记录后无法重新记录下班的问题
+- **修复**: 修复多线程同时写入数据库时可能崩溃的问题
+- **修复**: 修复删除历史记录时日期格式不一致的问题
 
 ## [0.15.0] - 2026-07-27
 
