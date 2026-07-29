@@ -51,11 +51,12 @@ repos:
           # 这些在后续阶段逐模块重构时修复，修复后从下面移除对应错误码
           "--disable-error-code=attr-defined",      # PySide6: Qt.NoFocus / QDialog.Accepted 等枚举存根缺失
           "--disable-error-code=assignment",        # 现有代码: Connection = None / Optional 未标注等
-          "--disable-error-code=type-arg",           # 现有代码: 裸 list/dict 缺少泛型参数
+          "--disable-error-code=type-arg",          # 现有代码: 裸 list/dict 缺少泛型参数
           "--disable-error-code=no-any-return",      # 现有代码: 返回 Any 但声明返回具体类型
           "--disable-error-code=name-defined",       # 延迟 import 的类型注解
           "--disable-error-code=return-value",       # 部分函数缺少 return
           "--disable-error-code=import-untyped",     # types-PySide6 存根不全
+          "--disable-error-code=call-overload",      # PySide6: QMetaObject.invokeMethod 存根重载不匹配
         ]
         # 排除手动测试脚本和构建产物
         exclude: |

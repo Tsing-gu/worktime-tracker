@@ -80,6 +80,7 @@ check_untyped_defs = false
 #   name-defined     — 延迟 import 的类型注解
 #   return-value     — 部分函数缺少 return
 #   import-untyped   — types-PySide6 存根不全
+#   call-overload    — PySide6: QMetaObject.invokeMethod 存根重载不匹配
 
 # PySide6 类型存根不完整，忽略缺失 import 错误
 [[tool.mypy.overrides]]
@@ -137,6 +138,24 @@ disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
 disallow_untyped_calls = false  # core/utils 层尚未 strict
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+# Phase 4 完成：UI 层 4 个 controller + MainWindowUI strict
+# 注意：disallow_untyped_calls = false，因为仍调用未重构的 ui 子模块（dialog 等）
+[[tool.mypy.overrides]]
+module = [
+  "src.ui.dialog_coordinator",
+  "src.ui.tray_controller",
+  "src.ui.poll_controller",
+  "src.ui.update_flow_controller",
+  "src.ui.main_window",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_calls = false  # ui 子模块（dialog 等）尚未 strict
 warn_return_any = true
 warn_unused_ignores = true
 no_implicit_optional = true
