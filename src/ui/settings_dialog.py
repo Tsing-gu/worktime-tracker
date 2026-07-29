@@ -53,7 +53,7 @@ class SettingsDialogUI(QtWidgets.QDialog):
         box = QtWidgets.QMessageBox(icon, title, text, QtWidgets.QMessageBox.Ok, parent)
         for btn in box.buttons():
             btn.setAutoDefault(False)
-            btn.setFocusPolicy(QtCore.Qt.NoFocus)
+            btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         box.show()
 
     @staticmethod
@@ -181,13 +181,13 @@ class SettingsDialogUI(QtWidgets.QDialog):
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         )
         btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.StrongFocus)
         btn_box.button(QtWidgets.QDialogButtonBox.Ok).setAutoDefault(False)
         btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.StrongFocus)
         btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setAutoDefault(False)
-        self.check_update_btn.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.record_office_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.check_update_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.record_office_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         btn_box.accepted.connect(self.accept)
         btn_box.rejected.connect(self.reject)
         main_layout.addWidget(btn_box)

@@ -50,10 +50,10 @@ class UpdateConfirmDialogUI(QtWidgets.QDialog):
             QtWidgets.QDialogButtonBox.Yes | QtWidgets.QDialogButtonBox.No
         )
         btn_box.button(QtWidgets.QDialogButtonBox.Yes).setText("立即更新")
-        btn_box.button(QtWidgets.QDialogButtonBox.Yes).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.Yes).setFocusPolicy(QtCore.Qt.StrongFocus)
         btn_box.button(QtWidgets.QDialogButtonBox.Yes).setAutoDefault(False)
         btn_box.button(QtWidgets.QDialogButtonBox.No).setText("稍后")
-        btn_box.button(QtWidgets.QDialogButtonBox.No).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.No).setFocusPolicy(QtCore.Qt.StrongFocus)
         btn_box.button(QtWidgets.QDialogButtonBox.No).setAutoDefault(False)
         btn_box.accepted.connect(self.accept)
         btn_box.rejected.connect(self.reject)

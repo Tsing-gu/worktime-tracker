@@ -45,17 +45,17 @@ class EditStartDialogUI(QtWidgets.QDialog):
 
         self._pmset_btn = QtWidgets.QPushButton("从 pmset 读取")
         self._pmset_btn.clicked.connect(self._on_fill_pmset)
-        self._pmset_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        self._pmset_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         layout.addWidget(self._pmset_btn)
 
         btn_box = QtWidgets.QDialogButtonBox(
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         )
         btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.StrongFocus)
         btn_box.button(QtWidgets.QDialogButtonBox.Ok).setAutoDefault(False)
         btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.StrongFocus)
         btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setAutoDefault(False)
         btn_box.accepted.connect(self.accept)
         btn_box.rejected.connect(self.reject)
@@ -92,7 +92,7 @@ class EditStartDialogUI(QtWidgets.QDialog):
             )
             for btn in box.buttons():
                 btn.setAutoDefault(False)
-                btn.setFocusPolicy(QtCore.Qt.NoFocus)
+                btn.setFocusPolicy(QtCore.Qt.StrongFocus)
             box.show()
 
     def get_time_str(self) -> str:

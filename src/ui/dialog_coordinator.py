@@ -116,11 +116,11 @@ class DialogCoordinator(QtCore.QObject):
         text: str,
         buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.Ok,
     ) -> QtWidgets.QMessageBox:
-        """封装 QMessageBox，禁用 autoDefault + NoFocus，修复按钮需点两次。非模态 show()。"""
+        """封装 QMessageBox，禁用 autoDefault + StrongFocus，修复按钮需点两次。非模态 show()。"""
         box = QtWidgets.QMessageBox(icon, title, text, buttons, parent)
         for btn in box.buttons():
             btn.setAutoDefault(False)
-            btn.setFocusPolicy(QtCore.Qt.NoFocus)
+            btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         box.show()
         return box
 
@@ -201,7 +201,7 @@ class DialogCoordinator(QtCore.QObject):
         )
         for btn in box.buttons():
             btn.setAutoDefault(False)
-            btn.setFocusPolicy(QtCore.Qt.NoFocus)
+            btn.setFocusPolicy(QtCore.Qt.StrongFocus)
 
         def on_finished(result_code: int) -> None:
             if result_code == QtWidgets.QMessageBox.Yes:
@@ -275,14 +275,14 @@ class DialogCoordinator(QtCore.QObject):
         cancel_btn = QtWidgets.QPushButton("取消")
         cancel_btn.setObjectName("SecondaryBtn")
         cancel_btn.setFixedSize(96, 32)
-        cancel_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        cancel_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         cancel_btn.clicked.connect(dlg.reject)
         btn_row.addWidget(cancel_btn)
         btn_row.addStretch()
         export_btn = QtWidgets.QPushButton("导出 Excel")
         export_btn.setObjectName("PrimaryBtn")
         export_btn.setFixedSize(96, 32)
-        export_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        export_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         export_btn.clicked.connect(lambda: dlg.done(1))
         btn_row.addWidget(export_btn)
         dlg_layout.addLayout(btn_row)
@@ -359,7 +359,7 @@ class DialogCoordinator(QtCore.QObject):
         )
         for btn in box.buttons():
             btn.setAutoDefault(False)
-            btn.setFocusPolicy(QtCore.Qt.NoFocus)
+            btn.setFocusPolicy(QtCore.Qt.StrongFocus)
 
         def on_finished(result_code: int) -> None:
             if result_code == QtWidgets.QMessageBox.Yes:

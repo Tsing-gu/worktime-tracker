@@ -141,7 +141,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
 
         prev_btn = QtWidgets.QPushButton("◀")
         prev_btn.setFixedSize(44, 32)
-        prev_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        prev_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         prev_btn.clicked.connect(self.prev_month)
         ctrl.addWidget(prev_btn)
 
@@ -152,13 +152,13 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
 
         next_btn = QtWidgets.QPushButton("▶")
         next_btn.setFixedSize(44, 32)
-        next_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        next_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         next_btn.clicked.connect(self.next_month)
         ctrl.addWidget(next_btn)
 
         today_btn = QtWidgets.QPushButton("本月")
         today_btn.setFixedHeight(32)
-        today_btn.setFocusPolicy(QtCore.Qt.NoFocus)
+        today_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         today_btn.clicked.connect(self.go_today)
         ctrl.addWidget(today_btn)
         ctrl.addStretch()
@@ -481,7 +481,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             )
             for btn in box.buttons():
                 btn.setAutoDefault(False)
-                btn.setFocusPolicy(QtCore.Qt.NoFocus)
+                btn.setFocusPolicy(QtCore.Qt.StrongFocus)
             box.show()
 
     def _input_dialog(
@@ -501,10 +501,10 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
         )
         btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.StrongFocus)
         btn_box.button(QtWidgets.QDialogButtonBox.Ok).setAutoDefault(False)
         btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.NoFocus)
+        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.StrongFocus)
         btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setAutoDefault(False)
         btn_box.accepted.connect(dialog.accept)
         btn_box.rejected.connect(dialog.reject)
