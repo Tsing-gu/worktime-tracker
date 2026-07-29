@@ -163,6 +163,7 @@ class TrackingService:
 
         result = self.tracker.poll(
             now=now,
+            idle=idle,
             start_time=start_time,
             daily_end_time=daily_end_time,
             daily_source=daily_source,

@@ -21,7 +21,6 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from src.utils.system import (
-    get_hid_idle_seconds,
     get_last_active_time,
     is_currently_active,
 )
@@ -156,6 +155,7 @@ class WorkTrackerCore:
     def poll(
         self,
         now: datetime = None,
+        idle: float = 0.0,
         start_time: datetime | None = None,
         daily_end_time: datetime | None = None,
         daily_source: str = "auto",
@@ -166,7 +166,11 @@ class WorkTrackerCore:
         only_office: bool = False,
     ) -> PollResult:
         """
-        执行一次轮询，返回事件结果（不写 DB）。
+        执行一次轮询，返回事件结果（不写 DB、不读 I/O）。
+
+        本方法为纯逻辑：HID 空闲时间由调用方读取后通过 ``idle`` 参数传入，
+        状态机据此判定上下班事件。这让 WorkTrackerCore 可被参数化测试
+        全覆盖，无需 mock 系统调用。
 
         事件判定顺序:
             1. 已下班（手动或自动）且用户回来活跃 → "back" 事件
@@ -180,6 +184,7 @@ class WorkTrackerCore:
 
         Args:
             now:                     当前时间（默认 datetime.now()）
+            idle:                    当前 HID 空闲秒数（由调用方读取）
             start_time:              DB 中今日上班时间
             daily_end_time:          DB 中今日下班时间
             daily_source:            DB 中今日记录来源
@@ -196,8 +201,6 @@ class WorkTrackerCore:
         if now is None:
             now = datetime.now()
 
-        # 读取当前 HID 空闲时间
-        idle = get_hid_idle_seconds()
         active = is_currently_active(idle)
         last_active = get_last_active_time(idle, now)
 

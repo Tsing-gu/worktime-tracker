@@ -9,12 +9,15 @@ test_tracker - 工作状态追踪器单元测试
 - resume_after_off：下班后恢复
 - reset_for_new_day：跨天重置
 
-WorkTrackerCore 是纯逻辑（不写 DB），测试时直接传参构造场景。
+WorkTrackerCore 是纯逻辑（不写 DB、不读 I/O）：
+- poll() 接收 idle 参数，由调用方读取 HID 后传入
+- is_currently_active / get_last_active_time 是纯函数，依据 idle 自动派生
+- 测试直接传参构造场景，无需 monkeypatch 系统调用
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pytest
 
@@ -108,22 +111,13 @@ class TestPoll:
     事件类型：off / target_reached / working / idle / back / manual_off
     """
 
-    def test_off_event_hidle_away(
-        self, tracker: WorkTrackerCore, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_off_event_hidle_away(self, tracker: WorkTrackerCore) -> None:
         """下班事件：HID 空闲超阈值 + 达时间下限。"""
-        # mock HID 读取：空闲 2 小时（>60分钟阈值）
-        monkeypatch.setattr("src.core.tracker.get_hid_idle_seconds", lambda: 7200.0)
-        monkeypatch.setattr("src.core.tracker.is_currently_active", lambda idle: False)
-        monkeypatch.setattr(
-            "src.core.tracker.get_last_active_time",
-            lambda idle, now: now - timedelta(seconds=7200),
-        )
-
         now = datetime(2026, 7, 15, 20, 0, 0)  # 20:00，超过 19:00 下限
         start_time = datetime(2026, 7, 15, 9, 0, 0)
         result = tracker.poll(
             now=now,
+            idle=7200.0,  # 空闲 2 小时（>60分钟阈值）→ active=False
             start_time=start_time,
             daily_end_time=None,
             daily_source="auto",
@@ -136,21 +130,13 @@ class TestPoll:
         assert result.event == "off"
         assert result.off_time is not None
 
-    def test_off_event_before_time_floor_not_triggered(
-        self, tracker: WorkTrackerCore, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_off_event_before_time_floor_not_triggered(self, tracker: WorkTrackerCore) -> None:
         """下班未触发：HID 空闲超阈值但未达时间下限。"""
-        monkeypatch.setattr("src.core.tracker.get_hid_idle_seconds", lambda: 7200.0)
-        monkeypatch.setattr("src.core.tracker.is_currently_active", lambda idle: False)
-        monkeypatch.setattr(
-            "src.core.tracker.get_last_active_time",
-            lambda idle, now: now - timedelta(seconds=7200),
-        )
-
         now = datetime(2026, 7, 15, 18, 0, 0)  # 18:00，未达 19:00 下限
         start_time = datetime(2026, 7, 15, 9, 0, 0)
         result = tracker.poll(
             now=now,
+            idle=7200.0,  # 空闲 2 小时（超阈值）
             start_time=start_time,
             daily_end_time=None,
             daily_source="auto",
@@ -163,18 +149,13 @@ class TestPoll:
         # 18:00 未达 19:00 下限，不触发 off
         assert result.event != "off"
 
-    def test_target_reached_event(
-        self, tracker: WorkTrackerCore, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_target_reached_event(self, tracker: WorkTrackerCore) -> None:
         """达标事件：worked_hours >= daily_required_hours。"""
-        monkeypatch.setattr("src.core.tracker.get_hid_idle_seconds", lambda: 30.0)
-        monkeypatch.setattr("src.core.tracker.is_currently_active", lambda idle: True)
-        monkeypatch.setattr("src.core.tracker.get_last_active_time", lambda idle, now: now)
-
         now = datetime(2026, 7, 15, 17, 30, 0)  # 17:30，从 9:00 起已工作 8.5h
         start_time = datetime(2026, 7, 15, 9, 0, 0)
         result = tracker.poll(
             now=now,
+            idle=3.0,  # 正在操作（< 5 秒阈值）→ active=True
             start_time=start_time,
             daily_end_time=None,
             daily_source="auto",
@@ -187,16 +168,13 @@ class TestPoll:
         assert result.event == "target_reached"
         assert result.worked_hours == 8.5
 
-    def test_working_state(self, tracker: WorkTrackerCore, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_working_state(self, tracker: WorkTrackerCore) -> None:
         """工作中状态：未下班、未达标、HID 活跃。"""
-        monkeypatch.setattr("src.core.tracker.get_hid_idle_seconds", lambda: 30.0)
-        monkeypatch.setattr("src.core.tracker.is_currently_active", lambda idle: True)
-        monkeypatch.setattr("src.core.tracker.get_last_active_time", lambda idle, now: now)
-
         now = datetime(2026, 7, 15, 14, 0, 0)  # 14:00，从 9:00 起已工作 5h
         start_time = datetime(2026, 7, 15, 9, 0, 0)
         result = tracker.poll(
             now=now,
+            idle=3.0,  # 正在操作
             start_time=start_time,
             daily_end_time=None,
             daily_source="auto",
@@ -210,17 +188,12 @@ class TestPoll:
         assert result.worked_hours == 5.0
         assert result.start_time == start_time
 
-    def test_idle_state_no_start_time(
-        self, tracker: WorkTrackerCore, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_idle_state_no_start_time(self, tracker: WorkTrackerCore) -> None:
         """空闲状态：无上班时间。"""
-        monkeypatch.setattr("src.core.tracker.get_hid_idle_seconds", lambda: 30.0)
-        monkeypatch.setattr("src.core.tracker.is_currently_active", lambda idle: True)
-        monkeypatch.setattr("src.core.tracker.get_last_active_time", lambda idle, now: now)
-
         now = datetime(2026, 7, 15, 8, 0, 0)
         result = tracker.poll(
             now=now,
+            idle=3.0,
             start_time=None,
             daily_end_time=None,
             daily_source="auto",
@@ -232,14 +205,8 @@ class TestPoll:
         )
         assert result.event == "idle"
 
-    def test_back_event_after_off(
-        self, tracker: WorkTrackerCore, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_back_event_after_off(self, tracker: WorkTrackerCore) -> None:
         """下班后回来活跃 → back 事件。"""
-        monkeypatch.setattr("src.core.tracker.get_hid_idle_seconds", lambda: 30.0)
-        monkeypatch.setattr("src.core.tracker.is_currently_active", lambda idle: True)
-        monkeypatch.setattr("src.core.tracker.get_last_active_time", lambda idle, now: now)
-
         # 先手动下班
         tracker.manual_off_work(
             start_time=datetime(2026, 7, 15, 9, 0, 0),
@@ -251,6 +218,7 @@ class TestPoll:
         now = datetime(2026, 7, 15, 18, 0, 0)
         result = tracker.poll(
             now=now,
+            idle=3.0,  # 正在操作（< 5 秒阈值）→ active=True 触发 back
             start_time=datetime(2026, 7, 15, 9, 0, 0),
             daily_end_time=datetime(2026, 7, 15, 17, 0, 0),
             daily_source="manual",
@@ -262,14 +230,8 @@ class TestPoll:
         )
         assert result.event == "back"
 
-    def test_back_event_only_once(
-        self, tracker: WorkTrackerCore, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_back_event_only_once(self, tracker: WorkTrackerCore) -> None:
         """back 事件只触发一次（防重复弹窗）。"""
-        monkeypatch.setattr("src.core.tracker.get_hid_idle_seconds", lambda: 30.0)
-        monkeypatch.setattr("src.core.tracker.is_currently_active", lambda idle: True)
-        monkeypatch.setattr("src.core.tracker.get_last_active_time", lambda idle, now: now)
-
         # 手动下班
         tracker.manual_off_work(
             start_time=datetime(2026, 7, 15, 9, 0, 0),
@@ -280,6 +242,7 @@ class TestPoll:
         now = datetime(2026, 7, 15, 18, 0, 0)
         result1 = tracker.poll(
             now=now,
+            idle=3.0,
             start_time=datetime(2026, 7, 15, 9, 0, 0),
             daily_end_time=datetime(2026, 7, 15, 17, 0, 0),
             daily_source="manual",
@@ -294,6 +257,7 @@ class TestPoll:
         # 第二次 poll → idle（不再 back）
         result2 = tracker.poll(
             now=now,
+            idle=3.0,
             start_time=datetime(2026, 7, 15, 9, 0, 0),
             daily_end_time=datetime(2026, 7, 15, 17, 0, 0),
             daily_source="manual",
@@ -304,6 +268,99 @@ class TestPoll:
             only_office=False,
         )
         assert result2.event == "idle"
+
+    # ─── 参数化事件矩阵 ────────────────────────────────────
+
+    @pytest.mark.parametrize(
+        "idle, at_office, only_office, expected_event",
+        [
+            # 活跃 + 在公司 → 未下班，达工时 → target_reached
+            pytest.param(0.0, True, False, "target_reached", id="active-at-office-0s"),
+            pytest.param(3.0, True, False, "target_reached", id="active-at-office-3s"),
+            # 活跃 + 不在公司 + only_office → office_away → off
+            pytest.param(3.0, False, True, "off", id="active-away-office-only"),
+            # 活跃 + 不在公司 + !only_office → office_away 不生效 → target_reached
+            pytest.param(3.0, False, False, "target_reached", id="active-away-no-only"),
+            # 活跃 + 在公司 + only_office → office_away 不生效 → target_reached
+            pytest.param(3.0, True, True, "target_reached", id="active-at-office-only"),
+            # 空闲 30 分钟（未达 60 分钟阈值）→ hid_away=False → target_reached
+            pytest.param(1800.0, True, False, "target_reached", id="idle-30min-no-off"),
+            # 空闲刚过 60 分钟阈值 → hid_away=True → off
+            pytest.param(3700.0, True, False, "off", id="idle-just-over-threshold"),
+            # 空闲 + 不在公司 + only_office → hid_away + office_away → off
+            pytest.param(3700.0, False, True, "off", id="idle-away-office-only"),
+            # 空闲 2 小时 → hid_away → off
+            pytest.param(7200.0, True, False, "off", id="idle-2h"),
+            # 空闲 2 小时 + !only_office + 不在公司 → hid_away → off（only_office 不影响）
+            pytest.param(7200.0, False, False, "off", id="idle-2h-no-only"),
+        ],
+    )
+    def test_poll_event_matrix(
+        self,
+        tracker: WorkTrackerCore,
+        idle: float,
+        at_office: bool,
+        only_office: bool,
+        expected_event: str,
+    ) -> None:
+        """参数化测试：idle × at_office × only_office 事件判定矩阵。
+
+        固定 now=20:00（达 19:00 下限），start_time=09:00（worked=11h 已达标），
+        覆盖 hid_away / office_away 两条下班路径与 target_reached 的边界。
+        """
+        now = datetime(2026, 7, 15, 20, 0, 0)
+        start_time = datetime(2026, 7, 15, 9, 0, 0)
+        result = tracker.poll(
+            now=now,
+            idle=idle,
+            start_time=start_time,
+            daily_end_time=None,
+            daily_source="auto",
+            off_threshold_minutes=60,
+            off_time_floor="19:00",
+            daily_required_hours=8.0,
+            at_office=at_office,
+            only_office=only_office,
+        )
+        assert result.event == expected_event
+
+    def test_off_not_triggered_before_time_floor(self, tracker: WorkTrackerCore) -> None:
+        """HID 空闲超阈值但未达时间下限 → 不触发 off，走 target_reached。"""
+        now = datetime(2026, 7, 15, 18, 0, 0)  # 18:00，未达 19:00 下限
+        start_time = datetime(2026, 7, 15, 9, 0, 0)  # worked=9h（已达标）
+        result = tracker.poll(
+            now=now,
+            idle=7200.0,  # 空闲 2 小时（超阈值）
+            start_time=start_time,
+            daily_end_time=None,
+            daily_source="auto",
+            off_threshold_minutes=60,
+            off_time_floor="19:00",
+            daily_required_hours=8.0,
+            at_office=True,
+            only_office=False,
+        )
+        # 未达 19:00 下限，不触发 off；worked=9h>=8h → target_reached
+        assert result.event == "target_reached"
+
+    def test_off_triggered_early_morning(self, tracker: WorkTrackerCore) -> None:
+        """凌晨时段（0:00-6:00）HID 空闲超阈值 → 直接触发 off（不要求 off_time_floor）。"""
+        now = datetime(2026, 7, 16, 3, 0, 0)  # 凌晨 3:00
+        start_time = datetime(2026, 7, 15, 9, 0, 0)  # 前一天上班，worked=18h
+        result = tracker.poll(
+            now=now,
+            idle=7200.0,  # 空闲 2 小时（超阈值）
+            start_time=start_time,
+            daily_end_time=None,
+            daily_source="auto",
+            off_threshold_minutes=60,
+            off_time_floor="19:00",
+            daily_required_hours=8.0,
+            at_office=True,
+            only_office=False,
+        )
+        # 凌晨时段直接判定 off（is_early_morning=True，不要求 off_floor_met）
+        assert result.event == "off"
 
 
 class TestManualOffWork:
@@ -345,17 +402,8 @@ class TestResumeAfterOff:
         tracker.resume_after_off()
         assert tracker.is_off() is False
 
-    def test_resume_allows_off_again(
-        self, tracker: WorkTrackerCore, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_resume_allows_off_again(self, tracker: WorkTrackerCore) -> None:
         """恢复后可再次下班。"""
-        monkeypatch.setattr("src.core.tracker.get_hid_idle_seconds", lambda: 7200.0)
-        monkeypatch.setattr("src.core.tracker.is_currently_active", lambda idle: False)
-        monkeypatch.setattr(
-            "src.core.tracker.get_last_active_time",
-            lambda idle, now: now - timedelta(seconds=7200),
-        )
-
         # 第一次下班
         tracker.manual_off_work(
             start_time=datetime(2026, 7, 15, 9, 0, 0),
@@ -371,6 +419,7 @@ class TestResumeAfterOff:
         now = datetime(2026, 7, 15, 20, 0, 0)
         result = tracker.poll(
             now=now,
+            idle=7200.0,  # 空闲 2 小时（超阈值）
             start_time=datetime(2026, 7, 15, 9, 0, 0),
             daily_end_time=None,
             daily_source="auto",
@@ -401,14 +450,8 @@ class TestResetForNewDay:
         assert tracker.is_off() is False
         assert tracker.last_idle is None
 
-    def test_reset_allows_new_day_start(
-        self, tracker: WorkTrackerCore, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_reset_allows_new_day_start(self, tracker: WorkTrackerCore) -> None:
         """重置后新一天可重新上班。"""
-        monkeypatch.setattr("src.core.tracker.get_hid_idle_seconds", lambda: 30.0)
-        monkeypatch.setattr("src.core.tracker.is_currently_active", lambda idle: True)
-        monkeypatch.setattr("src.core.tracker.get_last_active_time", lambda idle, now: now)
-
         # 第一天下班
         tracker.manual_off_work(
             start_time=datetime(2026, 7, 15, 9, 0, 0),
@@ -422,6 +465,7 @@ class TestResetForNewDay:
         now = datetime(2026, 7, 16, 8, 0, 0)
         result = tracker.poll(
             now=now,
+            idle=3.0,
             start_time=None,
             daily_end_time=None,
             daily_source="auto",
