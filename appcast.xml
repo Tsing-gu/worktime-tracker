@@ -16,7 +16,17 @@
       <pubDate>Mon, 28 Jul 2026 10:00:00 +0800</pubDate>
       <sparkle:version>38</sparkle:version>
       <sparkle:shortVersionString>0.15.3</sparkle:shortVersionString>
-      <description><![CDATA[修复首次使用时默认勾选「只记录在公司时间」但未配置办公网络，导致到达下班时间后频繁误判下班的问题；修复系统通知含双引号时发送失败；修复连接公司内网含多个域名时误判不在公司；修复清除下班记录后无法重新记录下班；修复多线程同时写入数据库时可能崩溃；修复跨年时下一年节假日不自动获取；修复更新下载网络超时时无限重试；修复概览卡片日均工时在今天请假时显示为0；优化日历页面加载速度和主界面统计刷新性能]]></description>
+      <description><![CDATA[<ul>
+<li>修复首次使用时默认勾选「只记录在公司时间」但未配置办公网络，导致到达下班时间后频繁误判下班的问题</li>
+<li>修复系统通知含双引号时发送失败</li>
+<li>修复连接公司内网含多个域名时误判不在公司</li>
+<li>修复清除下班记录后无法重新记录下班</li>
+<li>修复多线程同时写入数据库时可能崩溃</li>
+<li>修复跨年时下一年节假日不自动获取</li>
+<li>修复更新下载网络超时时无限重试</li>
+<li>修复概览卡片日均工时在今天请假时显示为0</li>
+<li>优化日历页面加载速度和主界面统计刷新性能</li>
+</ul>]]></description>
       <enclosure
         url="https://github.com/Tsing-gu/worktime-tracker/releases/download/v0.15.3/WorkTimeTracker.dmg"
         length="93968702"
