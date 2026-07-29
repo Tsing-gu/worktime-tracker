@@ -21,7 +21,13 @@ class ConfirmYesterdayDialogUI(QtWidgets.QDialog):
     如果有异常记录，一并显示警告。
     """
 
-    def __init__(self, work_date: date, daily: dict, required: float, parent=None):
+    def __init__(
+        self,
+        work_date: date,
+        daily: dict,
+        required: float,
+        parent: QtWidgets.QWidget | None = None,
+    ):
         """
         初始化确认弹窗，从传入的记录数据填充界面。
 

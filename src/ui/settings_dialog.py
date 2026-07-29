@@ -43,7 +43,12 @@ class SettingsDialogUI(QtWidgets.QDialog):
     """
 
     @staticmethod
-    def _msg(icon, parent, title, text):
+    def _msg(
+        icon: QtWidgets.QMessageBox.Icon,
+        parent: QtWidgets.QWidget,
+        title: str,
+        text: str,
+    ) -> None:
         """非模态 QMessageBox 提示。"""
         box = QtWidgets.QMessageBox(icon, title, text, QtWidgets.QMessageBox.Ok, parent)
         for btn in box.buttons():
@@ -52,14 +57,14 @@ class SettingsDialogUI(QtWidgets.QDialog):
         box.show()
 
     @staticmethod
-    def _msg_info(parent, title, text):
+    def _msg_info(parent: QtWidgets.QWidget, title: str, text: str) -> None:
         SettingsDialogUI._msg(QtWidgets.QMessageBox.Information, parent, title, text)
 
     @staticmethod
-    def _msg_warn(parent, title, text):
+    def _msg_warn(parent: QtWidgets.QWidget, title: str, text: str) -> None:
         SettingsDialogUI._msg(QtWidgets.QMessageBox.Warning, parent, title, text)
 
-    def __init__(self, settings: dict, parent=None):
+    def __init__(self, settings: dict, parent: QtWidgets.QWidget | None = None) -> None:
         """
         初始化设置弹窗，从 settings dict 读取当前值填充控件。
 
@@ -208,7 +213,7 @@ class SettingsDialogUI(QtWidgets.QDialog):
             SETTING_OFFICE_NETWORK_DOMAIN: self._office_domain,
         }
 
-    def _on_only_office_toggled(self, state):
+    def _on_only_office_toggled(self, state: QtCore.Qt.CheckState) -> None:
         """勾选「只记录在公司时间」时，若办公网络未设置则提示并阻止勾选。"""
         if state == QtCore.Qt.Checked and not self._office_domain:
             self._msg_warn(
@@ -216,7 +221,7 @@ class SettingsDialogUI(QtWidgets.QDialog):
             )
             self.only_office.setCheckState(QtCore.Qt.Unchecked)
 
-    def _on_check_update(self):
+    def _on_check_update(self) -> None:
         """立即检查更新，调用父窗口（MainWindow）的更新逻辑。"""
         parent = self.parent()
         if parent and hasattr(parent, "on_check_update"):
@@ -225,12 +230,12 @@ class SettingsDialogUI(QtWidgets.QDialog):
         else:
             self._msg_info(self, "检查更新", "请在主界面托盘菜单中检查更新")
 
-    def _on_record_office(self):
+    def _on_record_office(self) -> None:
         """检测当前网络的 DHCP domain_search，记录为办公网络域名（子线程执行避免阻塞）。"""
         self.record_office_btn.setEnabled(False)
         self.record_office_btn.setText("检测中...")
 
-        def worker():
+        def worker() -> None:
             from src.utils.system import get_network_status
 
             status = get_network_status()
@@ -245,7 +250,7 @@ class SettingsDialogUI(QtWidgets.QDialog):
         threading.Thread(target=worker, daemon=True).start()
 
     @QtCore.Slot(str)
-    def _on_record_office_result(self, domain):
+    def _on_record_office_result(self, domain: str) -> None:
         """网络检测完成，在主线程处理结果。"""
         self.record_office_btn.setEnabled(True)
         self.record_office_btn.setText("记录当前网络为办公网络")

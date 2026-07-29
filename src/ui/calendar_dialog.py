@@ -13,11 +13,13 @@ calendar_dialog - 日历历史弹窗
 版本: 0.4.2
 """
 
+from collections.abc import Callable
 from datetime import date, datetime, timedelta
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from src.config import LEAVE_TYPES, SETTING_DAILY_REQUIRED_HOURS
+from src.services.factory import ServiceFactory
 from src.ui.leave_dialog import LeaveDialogUI
 from src.ui.theme import get_theme
 from src.utils.date_utils import compute_work_date
@@ -33,7 +35,7 @@ class DayCellUI(QtWidgets.QFrame):
         work_date: 该格对应的日期
     """
 
-    def __init__(self, day: int, work_date: date, parent=None):
+    def __init__(self, day: int, work_date: date, parent: QtWidgets.QWidget | None = None) -> None:
         """
         初始化日期格。
 
@@ -70,7 +72,9 @@ class DayCellUI(QtWidgets.QFrame):
         # 启用右键菜单
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
-    def set_status(self, text: str, bg_color: str, fg_color: str = "", is_today: bool = False):
+    def set_status(
+        self, text: str, bg_color: str, fg_color: str = "", is_today: bool = False
+    ) -> None:
         """
         设置日期格的显示文本和背景色。
 
@@ -101,7 +105,11 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
     以及当月数据导出。
     """
 
-    def __init__(self, parent=None, factory=None):
+    def __init__(
+        self,
+        parent: QtWidgets.QWidget | None = None,
+        factory: ServiceFactory | None = None,
+    ) -> None:
         """
         初始化日历弹窗。
 
@@ -219,13 +227,13 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         _today = compute_work_date(datetime.now())
         self._current_year = _today.year
         self._current_month = _today.month
-        self._cells = []
+        self._cells: list[DayCellUI] = []
 
         self.load_data()
 
     # ─── 月份切换 ──────────────────────────────────────────
 
-    def prev_month(self):
+    def prev_month(self) -> None:
         """切换到上一个月。"""
         if self._current_month == 1:
             self._current_month = 12
@@ -234,7 +242,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             self._current_month -= 1
         self.load_data()
 
-    def next_month(self):
+    def next_month(self) -> None:
         """切换到下一个月。"""
         if self._current_month == 12:
             self._current_month = 1
@@ -243,7 +251,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             self._current_month += 1
         self.load_data()
 
-    def go_today(self):
+    def go_today(self) -> None:
         """跳回本月。"""
         _today = compute_work_date(datetime.now())
         self._current_year = _today.year
@@ -252,7 +260,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
 
     # ─── 数据加载 ──────────────────────────────────────────
 
-    def load_data(self):
+    def load_data(self) -> None:
         """
         加载当前月份的工时记录并渲染日历网格。
 
@@ -269,7 +277,10 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
 
         # 清空旧网格
         for i in reversed(range(self.grid_layout.count())):
-            w = self.grid_layout.itemAt(i).widget()
+            item = self.grid_layout.itemAt(i)
+            if item is None:
+                continue
+            w = item.widget()
             if w:
                 self.grid_layout.removeWidget(w)
                 w.deleteLater()
@@ -372,7 +383,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
 
     # ─── 右键菜单 ──────────────────────────────────────────
 
-    def on_right_click(self, cell: DayCellUI):
+    def on_right_click(self, cell: DayCellUI) -> None:
         """
         处理日期格右键菜单（非模态 popup）。
 
@@ -392,7 +403,9 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         menu.aboutToHide.connect(menu.deleteLater)
         menu.popup(cell.mapToGlobal(QtCore.QPoint(10, 10)))
 
-    def _on_menu_action(self, action, work_date_str, acts):
+    def _on_menu_action(
+        self, action: QtGui.QAction, work_date_str: str, acts: dict[str, QtGui.QAction]
+    ) -> None:
         """右键菜单动作分发。"""
         if action == acts["leave"]:
             self.mark_leave(work_date_str)
@@ -401,7 +414,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         elif action == acts["clear"]:
             self.clear_record(work_date_str)
 
-    def mark_leave(self, work_date_str: str):
+    def mark_leave(self, work_date_str: str) -> None:
         """
         打开请假弹窗（非模态）并保存请假记录。
 
@@ -412,7 +425,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         dialog = LeaveDialogUI(self, default_date=wd)
         self._pending_sub = dialog
 
-        def on_finished(result_code):
+        def on_finished(result_code: int) -> None:
             self._pending_sub = None
             if result_code == QtWidgets.QDialog.Accepted:
                 leave_date = dialog.get_date()
@@ -423,7 +436,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         dialog.finished.connect(on_finished)
         dialog.show()
 
-    def manual_edit(self, work_date_str: str):
+    def manual_edit(self, work_date_str: str) -> None:
         """
         手动补录/编辑某天的上下班时间（非模态级联）。
 
@@ -442,7 +455,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             if existing.get("end_time"):
                 end_default = existing["end_time"][11:16]
 
-        def on_start(start_str):
+        def on_start(start_str: str) -> None:
             if not start_str:
                 return
             self._input_dialog(
@@ -453,7 +466,9 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
 
         self._input_dialog(f"{work_date_str} 上班时间 (HH:MM)：", start_default, on_start)
 
-    def _apply_manual_edit(self, wd, work_date_str, start_str, end_str):
+    def _apply_manual_edit(
+        self, wd: date, work_date_str: str, start_str: str, end_str: str
+    ) -> None:
         """两级输入框都完成后保存记录。"""
         if not end_str:
             return
@@ -469,7 +484,9 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
                 btn.setFocusPolicy(QtCore.Qt.NoFocus)
             box.show()
 
-    def _input_dialog(self, label_text: str, default_text: str, on_accepted):
+    def _input_dialog(
+        self, label_text: str, default_text: str, on_accepted: Callable[[str], None]
+    ) -> None:
         """自定义文本输入对话框（非模态），确认后回调 on_accepted(text)。"""
         dialog = QtWidgets.QDialog(self)
         dialog.setWindowTitle("手动补录")
@@ -494,7 +511,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         layout.addWidget(btn_box)
         self._pending_sub = dialog
 
-        def on_finished(result_code):
+        def on_finished(result_code: int) -> None:
             self._pending_sub = None
             if result_code == QtWidgets.QDialog.Accepted:
                 on_accepted(edit.text().strip())
@@ -502,7 +519,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         dialog.finished.connect(on_finished)
         dialog.show()
 
-    def clear_record(self, work_date_str: str):
+    def clear_record(self, work_date_str: str) -> None:
         """
         清除指定日期的工时记录（非模态二次确认）。
 
@@ -516,7 +533,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         msg.addButton("取消", QtWidgets.QMessageBox.NoRole)
         self._pending_sub = msg
 
-        def on_finished(_):
+        def on_finished(_: int) -> None:
             self._pending_sub = None
             if msg.clickedButton() == yes_btn:
                 self._record.clear_record(work_date_str)

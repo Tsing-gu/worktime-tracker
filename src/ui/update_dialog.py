@@ -9,7 +9,9 @@ update_dialog - 更新确认与下载进度弹窗
 版本: 0.5.3
 """
 
-from PySide6 import QtCore, QtWidgets
+from collections.abc import Callable
+
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from src.utils.version import get_version
 
@@ -17,7 +19,7 @@ from src.utils.version import get_version
 class UpdateConfirmDialogUI(QtWidgets.QDialog):
     """发现新版本时的确认弹窗。"""
 
-    def __init__(self, info, parent=None):
+    def __init__(self, info: object, parent: QtWidgets.QWidget | None = None) -> None:
         """
         Args:
             info: UpdateInfo 对象
@@ -63,7 +65,7 @@ class UpdateProgressDialogUI(QtWidgets.QDialog):
 
     download_finished = QtCore.Signal(bool)
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("正在下载更新")
         self.setMinimumWidth(360)
@@ -94,7 +96,7 @@ class UpdateProgressDialogUI(QtWidgets.QDialog):
         self._cancelled = False
         self._cancel_callback = None
 
-    def _on_cancel(self):
+    def _on_cancel(self) -> None:
         """用户点击取消下载。"""
         self._cancelled = True
         self._cancel_btn.setEnabled(False)
@@ -106,15 +108,15 @@ class UpdateProgressDialogUI(QtWidgets.QDialog):
     def is_cancelled(self) -> bool:
         return self._cancelled
 
-    def set_cancel_callback(self, callback):
+    def set_cancel_callback(self, callback: Callable[[], None]) -> None:
         """设置取消下载时的回调（用于通知 service 停止下载）。"""
         self._cancel_callback = callback
 
-    def set_downloading(self):
+    def set_downloading(self) -> None:
         """下载开始后隐藏取消按钮的禁用状态。"""
         self._cancel_btn.setEnabled(True)
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         """关闭对话框时标记为取消并通知 service。"""
         if not self._cancelled:
             self._cancelled = True
@@ -123,7 +125,7 @@ class UpdateProgressDialogUI(QtWidgets.QDialog):
         super().closeEvent(event)
 
     @QtCore.Slot(int, int)
-    def update_progress(self, downloaded: int, total: int):
+    def update_progress(self, downloaded: int, total: int) -> None:
         """更新进度条。"""
         if total > 0:
             pct = int(downloaded * 100 / total)
@@ -136,5 +138,5 @@ class UpdateProgressDialogUI(QtWidgets.QDialog):
             self._detail_label.setText(f"{dl_mb:.1f} MB 已下载")
 
     @QtCore.Slot(str)
-    def set_status(self, text: str):
+    def set_status(self, text: str) -> None:
         self._status_label.setText(text)

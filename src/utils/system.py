@@ -10,12 +10,15 @@ system - macOS 系统调用封装
 版本: 0.4.2
 """
 
+import logging
 import re
 import subprocess
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from src.config import ACTIVE_THRESHOLD_SECONDS, AWAY_THRESHOLD_SECONDS
 from src.utils.date_utils import compute_work_date
+
+logger = logging.getLogger(__name__)
 
 # ─── HID 空闲时间 ─────────────────────────────────────────────
 
@@ -145,7 +148,9 @@ def get_network_status(office_domain: str = "") -> dict:
 # ─── pmset 电源日志 ───────────────────────────────────────────
 
 
-def get_first_active_from_pmset(work_date, work_start_floor: str = "06:00") -> datetime | None:
+def get_first_active_from_pmset(
+    work_date: date, work_start_floor: str = "06:00"
+) -> datetime | None:
     """
     从 `pmset -g log` 日志中回溯当天上班检测起始时间后首次 UserIsActive 事件。
 
@@ -195,7 +200,7 @@ def get_first_active_from_pmset(work_date, work_start_floor: str = "06:00") -> d
 # ─── macOS 系统通知 ───────────────────────────────────────────
 
 
-def send_notification(title: str, message: str, sound: str = "Glass"):
+def send_notification(title: str, message: str, sound: str = "Glass") -> None:
     """
     通过 osascript 发送 macOS 系统通知。
 
@@ -217,5 +222,5 @@ def send_notification(title: str, message: str, sound: str = "Glass"):
             capture_output=True,
             timeout=5,
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("系统通知发送失败：%s", e)

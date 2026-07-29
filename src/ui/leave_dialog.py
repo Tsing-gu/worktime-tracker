@@ -22,7 +22,7 @@ class LeaveDialogUI(QtWidgets.QDialog):
     确认后通过 get_date() 和 get_leave_type() 返回结果。
     """
 
-    def __init__(self, parent=None, default_date: date = None):
+    def __init__(self, parent: QtWidgets.QWidget | None = None, default_date: date | None = None):
         """
         初始化请假弹窗。
 

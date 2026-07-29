@@ -8,6 +8,8 @@ theme - 深色/浅色主题与 QSS 样式表
 版本: 0.4.2
 """
 
+from __future__ import annotations
+
 from PySide6 import QtCore, QtGui, QtWidgets
 
 
@@ -16,15 +18,15 @@ class ThemeManagerUI(QtCore.QObject):
 
     theme_changed = QtCore.Signal()
 
-    _instance = None
+    _instance: ThemeManagerUI | None = None
 
     @classmethod
-    def instance(cls):
+    def instance(cls) -> ThemeManagerUI:
         if cls._instance is None:
             cls._instance = cls()
         return cls._instance
 
-    def emit_changed(self):
+    def emit_changed(self) -> None:
         self.theme_changed.emit()
 
 

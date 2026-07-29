@@ -11,7 +11,7 @@ notification_service - 通知服务
 from src.utils.system import send_notification
 
 
-def notify_off_work(off_time_str: str, worked_hours: float):
+def notify_off_work(off_time_str: str, worked_hours: float) -> None:
     """
     下班提醒通知。
 
@@ -25,7 +25,7 @@ def notify_off_work(off_time_str: str, worked_hours: float):
     )
 
 
-def notify_target_reached(worked_hours: float, required: float):
+def notify_target_reached(worked_hours: float, required: float) -> None:
     """
     工时达标提醒通知。
 

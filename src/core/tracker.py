@@ -77,7 +77,7 @@ class WorkTrackerCore:
     tracker 仅返回 PollResult 供调用方决定如何处理。
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """初始化追踪器，所有状态标记归零。"""
         self.last_idle = None  # 上一次轮询的空闲值
         self._start_recorded = False  # 是否已记录上班
@@ -305,7 +305,7 @@ class WorkTrackerCore:
 
     # ─── 恢复计时（下班后回来） ────────────────────────────
 
-    def resume_after_off(self):
+    def resume_after_off(self) -> None:
         """
         恢复计时状态：用户下班后回来，确认恢复。
 
@@ -318,7 +318,7 @@ class WorkTrackerCore:
 
     # ─── 重置（跨天） ──────────────────────────────────────
 
-    def reset_for_new_day(self):
+    def reset_for_new_day(self) -> None:
         """
         重置追踪器状态，用于跨天时调用。
         所有状态标记归零，等待新一天的上下班判定。

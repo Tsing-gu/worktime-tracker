@@ -62,16 +62,15 @@ warn_return_any = true
 warn_unused_configs = true
 warn_redundant_casts = true
 warn_unused_ignores = true
-# Phase 0 关键：关闭所有「缺少类型注解」类检查，避免现有 6016 行代码爆错阻塞 pre-commit/CI
-# 这些选项在后续阶段重构各模块时，通过 [[tool.mypy.overrides]] 逐模块开启 strict 来收紧
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-disallow_untyped_calls = false
-check_untyped_defs = false
+# Phase 5 完成：全量 strict 放开（所有模块已补齐类型注解）
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+disallow_untyped_calls = false  # 保留 false，部分外部库调用无存根
+check_untyped_defs = true
+no_implicit_optional = true
 # Phase 0 临时忽略的错误码（PySide6 存根不全 + 现有代码类型债）
 # 注意：mypy 1.20 在 pyproject.toml 解析 disable_error_code 数组有 bug，
 # 故通过 pre-commit 钩子的 args 传 --disable-error-code 参数实现
-# Phase 5 完成后，重构好的模块通过 overrides 单独开启 strict，再逐步移除这些忽略
 # 当前忽略的错误码（见 .pre-commit-config.yaml 的 mypy 钩子 args）：
 #   attr-defined     — PySide6: Qt.NoFocus / QDialog.Accepted 等枚举存根缺失
 #   assignment       — 现有代码: Connection = None / Optional 未标注等
@@ -87,78 +86,12 @@ check_untyped_defs = false
 module = "PySide6.*"
 ignore_missing_imports = true
 
-# 已完成 strict 的模块（随重构推进逐步增加）：
-# 注意：mypy 在有 overrides 段时，未匹配模块会被当作「有显式配置」对待，
-# 因此不能用 strict = true（会改变全局默认），需逐项列出 strict 子选项。
-# 另需加 disallow_untyped_calls = false，避免被 strict 模块调用未重构模块时爆错。
-
-# Phase 0.4 完成：logging_setup strict
+# tests/ 测试代码放宽 strict：测试函数不强求类型注解
 [[tool.mypy.overrides]]
-module = "src.utils.logging_setup"
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_calls = false  # 调用方（main.py）尚未重构
-warn_return_any = true
-warn_unused_ignores = true
-no_implicit_optional = true
-
-# Phase 1 完成：data 层 strict（但允许调用未重构的 services 层）
-[[tool.mypy.overrides]]
-module = "src.data.*"
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_calls = false  # services 层尚未重构
-warn_return_any = true
-warn_unused_ignores = true
-no_implicit_optional = true
-
-# Phase 2 完成：settings_service strict
-[[tool.mypy.overrides]]
-module = "src.services.settings_service"
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_calls = false  # 调用方（worktime_service 等）尚未重构
-warn_return_any = true
-warn_unused_ignores = true
-no_implicit_optional = true
-
-# Phase 3 完成：tracking/stats/record/factory 子服务 strict
-# 注意：disallow_untyped_calls = false，因为仍调用未重构的 core/utils 层
-[[tool.mypy.overrides]]
-module = [
-  "src.services.tracking_service",
-  "src.services.stats_service",
-  "src.services.record_service",
-  "src.services.factory",
-]
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_calls = false  # core/utils 层尚未 strict
-warn_return_any = true
-warn_unused_ignores = true
-no_implicit_optional = true
-
-# Phase 4 完成：UI 层 4 个 controller + MainWindowUI strict
-# 注意：disallow_untyped_calls = false，因为仍调用未重构的 ui 子模块（dialog 等）
-[[tool.mypy.overrides]]
-module = [
-  "src.ui.dialog_coordinator",
-  "src.ui.tray_controller",
-  "src.ui.poll_controller",
-  "src.ui.update_flow_controller",
-  "src.ui.main_window",
-]
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_calls = false  # ui 子模块（dialog 等）尚未 strict
-warn_return_any = true
-warn_unused_ignores = true
-no_implicit_optional = true
+module = "tests.*"
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = false
 
 [tool.ruff]
 line-length = 100

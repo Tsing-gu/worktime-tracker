@@ -27,13 +27,13 @@ from src.utils.version import get_version
 class _DockReopenFilter(QtCore.QObject):
     """捕获应用激活事件 + 系统主题切换事件。"""
 
-    def __init__(self, window):
+    def __init__(self, window: MainWindowUI) -> None:
         super().__init__()
         self._window = window
         self._app = QtWidgets.QApplication.instance()
-        self._theme_timer = None
+        self._theme_timer: QtCore.QTimer | None = None
 
-    def eventFilter(self, obj, event):
+    def eventFilter(self, obj: QtCore.QObject, event: QtCore.QEvent) -> bool:
         if event.type() == QtCore.QEvent.ApplicationActivate:
             if not self._window.isVisible():
                 self._window.show_normal()
@@ -47,14 +47,14 @@ class _DockReopenFilter(QtCore.QObject):
             self._theme_timer.start(200)
         return super().eventFilter(obj, event)
 
-    def _reapply_theme(self):
+    def _reapply_theme(self) -> None:
         from src.ui.theme import ThemeManagerUI, build_qss, get_theme
 
         self._app.setStyleSheet(build_qss(get_theme()))
         ThemeManagerUI.instance().emit_changed()
 
 
-def main():
+def main() -> None:
     """程序入口函数。"""
     # 初始化日志系统（在其他模块加载前完成，确保各模块能用 getLogger）
     logger = setup_logging()

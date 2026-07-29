@@ -11,11 +11,18 @@ import threading
 
 from PySide6 import QtCore, QtWidgets
 
+from src.services.tracking_service import TrackingService
+
 
 class EditStartDialogUI(QtWidgets.QDialog):
     """修改上班时间对话框。"""
 
-    def __init__(self, current_start_str: str, service, parent=None):
+    def __init__(
+        self,
+        current_start_str: str,
+        service: TrackingService,
+        parent: QtWidgets.QWidget | None = None,
+    ) -> None:
         """
         Args:
             current_start_str: 当前上班时间字符串 "HH:MM"（无记录时为空串）
@@ -54,12 +61,12 @@ class EditStartDialogUI(QtWidgets.QDialog):
         btn_box.rejected.connect(self.reject)
         layout.addWidget(btn_box)
 
-    def _on_fill_pmset(self):
+    def _on_fill_pmset(self) -> None:
         """从 pmset 读取上班时间，子线程执行避免阻塞 UI。"""
         self._pmset_btn.setEnabled(False)
         self._pmset_btn.setText("读取中...")
 
-        def worker():
+        def worker() -> None:
             pmset_time = self._service.get_pmset_start_time()
             time_str = pmset_time.strftime("%H:%M") if pmset_time else ""
             QtCore.QMetaObject.invokeMethod(
@@ -69,7 +76,7 @@ class EditStartDialogUI(QtWidgets.QDialog):
         threading.Thread(target=worker, daemon=True).start()
 
     @QtCore.Slot(str)
-    def _on_pmset_result(self, time_str):
+    def _on_pmset_result(self, time_str: str) -> None:
         """pmset 读取完成，在主线程回填输入框。"""
         self._pmset_btn.setEnabled(True)
         self._pmset_btn.setText("从 pmset 读取")

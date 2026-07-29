@@ -47,7 +47,11 @@ class WorktimeCalculatorCore:
         self.weekly_work_days = weekly_work_days
 
     def period_stats(
-        self, today: date, records: list, now: datetime = None, period=None
+        self,
+        today: date,
+        records: list,
+        now: datetime | None = None,
+        period: tuple[date, date] | None = None,
     ) -> PeriodStats:
         """计算本期工时统计。
 

@@ -8,6 +8,7 @@ update_service - 纯 Python 自动更新服务
 版本: 0.8.0
 """
 
+import logging
 import os
 import subprocess
 import sys
@@ -28,6 +29,8 @@ from src.data.settings_repo import SettingsRepository
 from src.utils.net import encode_url
 from src.utils.text import strip_html
 from src.utils.version import get_version
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -53,11 +56,11 @@ class UpdateService:
         self._cancelled = False
         self._settings = settings_repo
 
-    def cancel_download(self):
+    def cancel_download(self) -> None:
         """取消正在进行的下载。"""
         self._cancelled = True
 
-    def reset_cancel(self):
+    def reset_cancel(self) -> None:
         """重置取消标志。"""
         self._cancelled = False
 
@@ -98,7 +101,7 @@ class UpdateService:
                 with urlopen(req, timeout=15, context=ctx) as resp:
                     return resp.read().decode("utf-8")
             except Exception as e:
-                print(f"[Update] 拉取失败 {url}：{e}")
+                logger.warning("[Update] 拉取失败 %s：%s", url, e)
                 continue
         return None
 
@@ -129,7 +132,7 @@ class UpdateService:
                 length=length,
             )
         except Exception as e:
-            print(f"[Update] 解析 appcast 失败：{e}")
+            logger.warning("[Update] 解析 appcast 失败：%s", e)
             return None
 
     def _is_newer(self, remote_version: str) -> bool:
@@ -191,7 +194,9 @@ class UpdateService:
                                 return None
                             timeout_count += 1
                             if timeout_count > max_timeout_retries:
-                                print(f"[Update] 下载超时次数过多({max_timeout_retries})，放弃下载")
+                                logger.warning(
+                                    "[Update] 下载超时次数过多(%s)，放弃下载", max_timeout_retries
+                                )
                                 f.close()
                                 try:
                                     os.remove(dmg_path)
@@ -210,7 +215,7 @@ class UpdateService:
         except Exception as e:
             if self._cancelled:
                 return None
-            print(f"[Update] 下载失败：{e}")
+            logger.warning("[Update] 下载失败：%s", e)
             return None
 
     def verify_update(self, dmg_path: str, expected_length: int) -> bool:
@@ -218,7 +223,7 @@ class UpdateService:
         try:
             actual = os.path.getsize(dmg_path)
             if expected_length > 0 and actual != expected_length:
-                print(f"[Update] 大小不匹配：期望 {expected_length}，实际 {actual}")
+                logger.warning("[Update] 大小不匹配：期望 %s，实际 %s", expected_length, actual)
                 return False
             return actual > 0
         except Exception:
@@ -230,7 +235,7 @@ class UpdateService:
         """写外部 updater 脚本 → 退出主进程 → 脚本挂载 DMG → 替换 .app → 重启。"""
         app_path = self._get_app_path()
         if not app_path:
-            print("[Update] 无法获取 .app 路径，开发环境不自动更新")
+            logger.warning("[Update] 无法获取 .app 路径，开发环境不自动更新")
             return False
 
         app_name = os.path.basename(app_path)
@@ -285,7 +290,7 @@ rm -f "{updater_script}"
     def is_auto_update_enabled(self) -> bool:
         return self._settings.get(SETTING_AUTO_UPDATE, "0") == "1"
 
-    def set_auto_update(self, enabled: bool):
+    def set_auto_update(self, enabled: bool) -> None:
         self._settings.set(SETTING_AUTO_UPDATE, "1" if enabled else "0")
 
     def should_check_now(self, interval: int) -> bool:
@@ -299,5 +304,5 @@ rm -f "{updater_script}"
         except Exception:
             return True
 
-    def mark_checked(self):
+    def mark_checked(self) -> None:
         self._settings.set(SETTING_LAST_UPDATE_CHECK, datetime.now().isoformat())

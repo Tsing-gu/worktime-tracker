@@ -67,7 +67,7 @@ def build_holiday_index(holidays: list) -> dict:
     return {h["date"]: h for h in holidays}
 
 
-def is_workday(dt: date, holidays, weekly_work_days: int = 5) -> bool:
+def is_workday(dt: date, holidays: list[dict] | dict[str, dict], weekly_work_days: int = 5) -> bool:
     """判断指定日期是否为工作日。
 
     周末 + 非调休 → 非工作日
@@ -90,7 +90,9 @@ def is_workday(dt: date, holidays, weekly_work_days: int = 5) -> bool:
     return dt.weekday() < weekly_work_days
 
 
-def is_rest_day(dt: date, holidays, weekly_work_days: int = 5) -> bool:
+def is_rest_day(
+    dt: date, holidays: list[dict] | dict[str, dict], weekly_work_days: int = 5
+) -> bool:
     """判断指定日期是否为休息日（非工作日）。"""
     return not is_workday(dt, holidays, weekly_work_days)
 
@@ -151,7 +153,7 @@ def get_previous_workday(today: date, holidays: list, weekly_work_days: int = 5)
     return None
 
 
-def _find_holiday(dt: date, holidays) -> dict | None:
+def _find_holiday(dt: date, holidays: list[dict] | dict[str, dict]) -> dict | None:
     """从节假日中查找指定日期。holidays 可以是 list 或 dict 索引。"""
     dt_str = dt.isoformat()
     if isinstance(holidays, dict):

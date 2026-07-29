@@ -128,7 +128,7 @@ class HolidayService:
         """获取全部节假日缓存记录。"""
         return self._repo.get_all()
 
-    def _save_cache(self, year: int, days: list):
+    def _save_cache(self, year: int, days: list) -> None:
         """将节假日数据保存到本地 JSON 缓存文件。"""
         Path(os.path.dirname(self._cache_file)).mkdir(parents=True, exist_ok=True)
         cache = {}
