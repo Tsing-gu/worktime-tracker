@@ -19,7 +19,7 @@ class EditStartDialogUI(QtWidgets.QDialog):
         """
         Args:
             current_start_str: 当前上班时间字符串 "HH:MM"（无记录时为空串）
-            service:           WorktimeService 实例（用于读取 pmset）
+            service:           TrackingService 实例（用于读取 pmset）
             parent:            父窗口
         """
         super().__init__(parent)

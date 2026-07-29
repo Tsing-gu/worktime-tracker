@@ -136,6 +136,11 @@ class SettingsService:
     def __init__(self, settings_repo: SettingsRepository) -> None:
         self._repo = settings_repo
         self._cache: Settings | None = None
+        self._on_changed_callbacks: list[Callable[[], None]] = []
+
+    def register_on_changed(self, callback: Callable[[], None]) -> None:
+        """注册设置变更回调，update() 后依次调用。用于通知依赖设置的服务刷新缓存。"""
+        self._on_changed_callbacks.append(callback)
 
     def init(self) -> Settings:
         """启动迁移 + 加载缓存。
@@ -186,6 +191,9 @@ class SettingsService:
         # 刷新缓存
         self._cache = replace(current, **kwargs)
         logger.debug("设置已更新：%s", kwargs)
+        # 通知依赖方（如 StatsService 的计算器缓存失效）
+        for cb in self._on_changed_callbacks:
+            cb()
         return self._cache
 
     def reload(self) -> Settings:
@@ -228,3 +236,29 @@ class SettingsService:
         """获取字段的默认值。"""
         defaults = Settings()
         return getattr(defaults, field_name)
+
+    # ─── UI 层兼容方法（Phase 3 迁移期保留） ──────────────
+
+    def get_settings_dict(self) -> dict[str, str]:
+        """读取全部设置为 dict（UI 层 SettingsDialog 兼容用）。
+
+        返回 {key: value} 的原始字符串 dict，与旧 WorktimeService.get_settings() 行为一致。
+        """
+        return self._repo.get_all()
+
+    def update_from_dict(self, values: dict[str, str]) -> None:
+        """从 dict 批量更新设置（UI 层 SettingsDialog 兼容用）。
+
+        values 是 {key: value} 的原始字符串 dict，与旧 WorktimeService.update_settings() 行为一致。
+        直接写 DB，不走类型化 update()（因为 SettingsDialog 传的是字符串）。
+        """
+        for key, value in values.items():
+            self._repo.set(key, value)
+        self._cache = self._load_from_db()
+        for cb in self._on_changed_callbacks:
+            cb()
+        logger.debug("设置已批量更新（dict 模式）：%s", values)
+
+    def get_setting(self, key: str, default: str = "") -> str:
+        """读取单个设置值（原始字符串，UI 层兼容用）。"""
+        return self._repo.get(key, default)

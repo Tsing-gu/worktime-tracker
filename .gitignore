@@ -3,6 +3,10 @@
 .AppleDouble
 .LSOverride
 
+# IDE / Agent 配置（本地）
+.codeflicker/
+.myflicker/
+
 # Python
 __pycache__/
 *.py[cod]

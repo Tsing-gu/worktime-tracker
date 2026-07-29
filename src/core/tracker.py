@@ -4,7 +4,7 @@ tracker - 键鼠活动追踪 + 上下班判定
 
 本模块负责 HIDIdleTime 轮询逻辑和上下班判定算法。
 **解耦设计**: tracker 不直接读写数据库，仅返回事件结果，
-由 services.worktime_service 负责调用 database 持久化。
+由 services.tracking_service 负责调用 data 层持久化。
 
 核心流程:
     1. poll() 读取 HIDIdleTime，判断活跃/空闲

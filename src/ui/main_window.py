@@ -10,9 +10,9 @@ main_window - 主窗口
     - 30 秒定时轮询（驱动 tracker + 刷新 UI）
 
 架构关系:
-    MainWindow 只依赖 WorktimeService，不直接操作 database/tracker/calculator。
+    MainWindow 依赖 ServiceFactory，通过子服务访问业务层。
 
-版本: 0.4.2
+版本: 0.16.0
 """
 
 import threading
@@ -26,7 +26,7 @@ from src.config import (
     SETTING_NOTIFY_ON_TARGET,
 )
 from src.services import notification_service
-from src.services.worktime_service import WorktimeService
+from src.services.factory import ServiceFactory
 from src.ui.calendar_dialog import CalendarHistoryDialogUI
 from src.ui.confirm_dialog import ConfirmYesterdayDialogUI
 from src.ui.edit_start_dialog import EditStartDialogUI
@@ -50,8 +50,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
         - 手动下班 / 修改上班 / 设置 / 日历 / 请假 / 导出
 
     Attributes:
-        service:  WorktimeService 实例，唯一的业务层入口
-        tracker:   WorkTracker 实例（通过 service 间接管理）
+        factory:  ServiceFactory 实例，持有所有子服务
         timer:     30 秒轮询定时器
         tray:      系统托盘图标
     """
@@ -68,9 +67,13 @@ class MainWindowUI(QtWidgets.QMainWindow):
         self.setMinimumSize(640, 600)
         self.resize(680, 640)
 
-        # 唯一的业务层入口
-        self.service = WorktimeService()
-        self.update_service = self.service.get_update_service()
+        # 服务工厂（持有所有子服务）
+        self.factory = ServiceFactory()
+        self.tracking = self.factory.tracking_service
+        self.stats = self.factory.stats_service
+        self.record = self.factory.record_service
+        self.settings = self.factory.settings_service
+        self.update_service = self.factory.update_service
         self._tray_popup_menu = None  # 当前时长卡菜单
         self._update_checking = False  # 防止重复检查
         self._initialized = False  # service.init() 是否完成
@@ -395,11 +398,13 @@ class MainWindowUI(QtWidgets.QMainWindow):
 
         def worker():
             try:
-                self.service.init()
+                self.factory.init_all()
                 self._initialized = True
                 self.holiday_loaded.emit()
-            except Exception as e:
-                print(f"[Startup] 初始化失败：{e}")
+            except Exception:
+                import logging
+
+                logging.getLogger(__name__).exception("初始化失败")
                 self.holiday_loaded.emit()
 
         threading.Thread(target=worker, daemon=True).start()
@@ -466,7 +471,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
             self._tray_popup_menu.deleteLater()
             self._tray_popup_menu = None
 
-        status = self.service.get_today_status()
+        status = self.stats.get_today_status()
 
         menu = QtWidgets.QMenu(self)
         menu.setAttribute(QtCore.Qt.WA_DeleteOnClose)
@@ -591,7 +596,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
 
         def worker():
             try:
-                result = self.service.poll_and_record()
+                result = self.tracking.poll_and_record()
                 self.poll_finished.emit(result)
             except Exception as e:
                 print(f"[Poll] 轮询失败：{e}")
@@ -617,7 +622,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
         # ── 达标通知 ──
         elif result.event == "target_reached":
             if self._get_setting_bool(SETTING_NOTIFY_ON_TARGET, True):
-                status = self.service.get_today_status()
+                status = self.stats.get_today_status()
                 required = status.required_hours
                 threading.Thread(
                     target=notification_service.notify_target_reached,
@@ -632,7 +637,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
         self.refresh_ui()
 
         # ── 再弹次日确认/更新检查（放最后）──
-        if not self._busy and self.service.should_check_yesterday():
+        if not self._busy and self.record.should_check_yesterday():
             self._check_yesterday_confirm()
 
     def _confirm_resume(self):
@@ -661,7 +666,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
             self._busy = False
             self._pending_dialog = None
             if result_code == QtWidgets.QMessageBox.Yes:
-                self.service.resume_after_off()
+                self.tracking.resume_after_off()
                 self.refresh_ui()
 
         box.finished.connect(on_finished)
@@ -719,7 +724,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
         自动检查路径不弹"已是最新"/"检查失败"提示——静默处理。
         用 update_check_finished 信号但区分手动/自动：自动路径用 _auto=True 标记。
         """
-        self.service.mark_yesterday_checked()
+        self.record.mark_yesterday_checked()
 
         def worker():
             try:
@@ -825,12 +830,12 @@ class MainWindowUI(QtWidgets.QMainWindow):
         通过 service.check_yesterday() 获取待确认的前一工作日记录，
         弹出 ConfirmYesterdayDialog 供用户确认或修改。
         """
-        result = self.service.check_yesterday()
+        result = self.record.check_yesterday()
         if result is None:
             return
 
         prev, daily = result
-        required = self.service.get_required_hours()
+        required = self.stats.get_required_hours()
         dialog = ConfirmYesterdayDialogUI(prev, daily, required, self)
         self._busy = True
         self._pending_dialog = dialog
@@ -838,10 +843,10 @@ class MainWindowUI(QtWidgets.QMainWindow):
         def on_finished(result_code):
             if result_code == QtWidgets.QDialog.Accepted:
                 end_time = dialog.get_end_time()
-                self.service.confirm_yesterday(prev, end_time)
+                self.record.confirm_yesterday(prev, end_time)
             else:
-                self.service.skip_yesterday(prev)
-            self.service.mark_yesterday_checked()
+                self.record.skip_yesterday(prev)
+            self.record.mark_yesterday_checked()
             self._busy = False
             self._pending_dialog = None
             self.refresh_ui()
@@ -859,7 +864,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
         weekday_name = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][today.weekday()]
         self.date_label.setText(f"{today.year}年{today.month}月{today.day}日 {weekday_name}")
 
-        status = self.service.get_today_status()
+        status = self.stats.get_today_status()
 
         # ── 上班时间 ──
         if status.start_time:
@@ -893,7 +898,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
         self._update_tray_icon(status)
 
         # ── 本期卡片 ──
-        period = self.service.get_period_stats()
+        period = self.stats.get_period_stats()
         if period.is_rest:
             self._card_labels["本期概览_line1"].setText("休息中")
             self._card_labels["本期概览_line2"].setText("")
@@ -920,7 +925,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
             self._style_progress_bar(bar, period.worked_hours, period.target_hours)
 
         # ── 本月卡片 ──
-        month = self.service.get_month_stats()
+        month = self.stats.get_month_stats()
         self._card_labels["本月概览_line1"].setText(
             f"已工作 {month.worked_days}天 / {month.total_workdays}天"
         )
@@ -941,11 +946,11 @@ class MainWindowUI(QtWidgets.QMainWindow):
 
     def on_edit_start(self):
         """修改今日上班时间：非模态弹窗，支持手动输入或从 pmset 读取。"""
-        status = self.service.get_today_status()
+        status = self.stats.get_today_status()
         current_start = status.start_time
         current_str = current_start.strftime("%H:%M") if current_start else ""
 
-        dialog = EditStartDialogUI(current_str, self.service, self)
+        dialog = EditStartDialogUI(current_str, self.tracking, self)
         self._busy = True
         self._pending_dialog = dialog
 
@@ -958,7 +963,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
             if not new_str:
                 return
             try:
-                new_start = self.service.edit_start_time(new_str)
+                new_start = self.tracking.edit_start_time(new_str)
                 self.refresh_ui()
                 self._msg_information(
                     self, "已修改", f"上班时间已更新为 {new_start.strftime('%H:%M')}"
@@ -971,7 +976,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
 
     def on_manual_off(self):
         """手动下班：非模态弹窗确认后通过 service.manual_off() 记录。"""
-        status = self.service.get_today_status()
+        status = self.stats.get_today_status()
         if not status.has_started:
             self._msg_information(self, "提示", "今天还没有上班记录，无法下班")
             return
@@ -999,7 +1004,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
             self._busy = False
             self._pending_dialog = None
             if result_code == QtWidgets.QMessageBox.Yes:
-                result = self.service.manual_off()
+                result = self.tracking.manual_off()
                 if result.event == "manual_off":
                     self._msg_information(
                         self,
@@ -1014,7 +1019,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
 
     def on_settings(self):
         """打开设置弹窗（非模态），确认后保存设置。"""
-        dialog = SettingsDialogUI(self.service.get_settings(), self)
+        dialog = SettingsDialogUI(self.settings.get_settings_dict(), self)
         self._busy = True
         self._pending_dialog = dialog
 
@@ -1022,7 +1027,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
             self._busy = False
             self._pending_dialog = None
             if result_code == QtWidgets.QDialog.Accepted:
-                self.service.update_settings(dialog.get_values())
+                self.settings.update_from_dict(dialog.get_values())
                 self.refresh_ui()
 
         dialog.finished.connect(on_finished)
@@ -1032,7 +1037,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
         """打开日历历史弹窗（非模态）。"""
         if self._busy:
             return
-        dialog = CalendarHistoryDialogUI(self, service=self.service)
+        dialog = CalendarHistoryDialogUI(self, factory=self.factory)
         self._busy = True
         self._pending_dialog = dialog
 
@@ -1056,7 +1061,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
             if result_code == QtWidgets.QDialog.Accepted:
                 leave_date = dialog.get_date()
                 leave_type = dialog.get_leave_type()
-                self.service.mark_leave(leave_date, leave_type)
+                self.record.mark_leave(leave_date, leave_type)
                 self.refresh_ui()
 
         dialog.finished.connect(on_finished)
@@ -1106,7 +1111,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
             self._pending_dialog = None
             if result_code != 1:
                 return
-            exporter = self.service.get_exporter()
+            exporter = self.factory.export_service
 
             def worker():
                 try:
@@ -1150,7 +1155,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
 
     def _get_setting(self, key: str, default: str = "") -> str:
         """读取设置值的快捷方法。"""
-        return self.service.get_setting(key, default)
+        return self.settings.get_setting(key, default)
 
     def _get_setting_bool(self, key: str, default: bool = False) -> bool:
         """读取布尔型设置值的快捷方法。"""

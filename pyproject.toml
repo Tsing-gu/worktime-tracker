@@ -124,6 +124,23 @@ warn_return_any = true
 warn_unused_ignores = true
 no_implicit_optional = true
 
+# Phase 3 完成：tracking/stats/record/factory 子服务 strict
+# 注意：disallow_untyped_calls = false，因为仍调用未重构的 core/utils 层
+[[tool.mypy.overrides]]
+module = [
+  "src.services.tracking_service",
+  "src.services.stats_service",
+  "src.services.record_service",
+  "src.services.factory",
+]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_calls = false  # core/utils 层尚未 strict
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"

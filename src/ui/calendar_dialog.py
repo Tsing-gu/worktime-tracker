@@ -101,20 +101,22 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
     以及当月数据导出。
     """
 
-    def __init__(self, parent=None, service=None):
+    def __init__(self, parent=None, factory=None):
         """
         初始化日历弹窗。
 
         Args:
             parent:  父窗口
-            service: WorktimeService 实例（必须由调用方传入，UI 层不自行创建）
+            factory: ServiceFactory 实例（必须由调用方传入，UI 层不自行创建）
         """
         super().__init__(parent)
         self.setWindowTitle("日历")
         self.setMinimumSize(820, 660)
-        if service is None:
-            raise ValueError("CalendarHistoryDialogUI 必须传入 service 实例")
-        self.service = service
+        if factory is None:
+            raise ValueError("CalendarHistoryDialogUI 必须传入 factory 实例")
+        self._record = factory.record_service
+        self._settings = factory.settings_service
+        self._export = factory.export_service
         self._pending_sub = None  # 当前非模态子弹窗引用，防止 GC
 
         from src.ui.theme import ThemeManagerUI
@@ -281,13 +283,13 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             end = date(year, month + 1, 1) - timedelta(days=1)
 
         # 从 service 获取数据
-        records = self.service.get_date_range_worktime(start, end)
-        holidays = self.service.get_all_holidays()
+        records = self._record.get_date_range_worktime(start, end)
+        holidays = self._record.get_all_holidays()
         records_map = {r["work_date"]: r for r in records}
         holidays_map = {h["date"]: h for h in holidays}
 
         theme = get_theme()
-        default_required = float(self.service.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+        default_required = float(self._settings.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
 
         # 计算起始位置（周一起始）
         first_weekday = start.weekday()
@@ -415,7 +417,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             if result_code == QtWidgets.QDialog.Accepted:
                 leave_date = dialog.get_date()
                 leave_type = dialog.get_leave_type()
-                self.service.mark_leave(leave_date, leave_type)
+                self._record.mark_leave(leave_date, leave_type)
                 self.load_data()
 
         dialog.finished.connect(on_finished)
@@ -431,7 +433,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             work_date_str: 工作日日期字符串
         """
         wd = date.fromisoformat(work_date_str)
-        existing = self.service.get_daily_worktime(wd)
+        existing = self._record.get_daily_worktime(wd)
         start_default = ""
         end_default = ""
         if existing:
@@ -456,7 +458,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         if not end_str:
             return
         try:
-            self.service.manual_record(wd, start_str, end_str)
+            self._record.manual_record(wd, start_str, end_str)
             self.load_data()
         except ValueError as e:
             box = QtWidgets.QMessageBox(
@@ -517,7 +519,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         def on_finished(_):
             self._pending_sub = None
             if msg.clickedButton() == yes_btn:
-                self.service.clear_record(work_date_str)
+                self._record.clear_record(work_date_str)
                 self.load_data()
 
         msg.finished.connect(on_finished)
