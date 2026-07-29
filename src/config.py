@@ -49,7 +49,7 @@ DEFAULT_SETTINGS = {
     SETTING_AUTO_UPDATE: "0",
     SETTING_LAST_UPDATE_CHECK: "",
     SETTING_OFFICE_NETWORK_DOMAIN: "",
-    SETTING_ONLY_OFFICE_TIME: "1",
+    SETTING_ONLY_OFFICE_TIME: "0",
 }
 
 # ─── 追踪参数 ────────────────────────────────────────────────
