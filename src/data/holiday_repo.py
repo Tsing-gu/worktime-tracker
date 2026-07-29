@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 holiday_repo - 节假日仓储
 ========================
@@ -9,7 +8,6 @@ holiday_repo - 节假日仓储
 """
 
 from datetime import date
-from typing import Optional, List
 
 from src.data.database import Repository
 
@@ -17,7 +15,7 @@ from src.data.database import Repository
 class HolidayRepository(Repository):
     """节假日表仓储，提供节假日缓存的读写。"""
 
-    def save_year(self, year: int, holidays: list):
+    def save_year(self, year: int, holidays: list[dict]) -> None:
         """按年份增量写入节假日数据（只替换指定年份，不影响其他年份）。
 
         Args:
@@ -38,7 +36,7 @@ class HolidayRepository(Repository):
                     (h["date"], h["name"], 1 if is_off else 0),
                 )
 
-    def get(self, work_dt: date) -> Optional[dict]:
+    def get(self, work_dt: date) -> dict | None:
         """查询指定日期是否为节假日/调休日。
 
         Args:
@@ -53,7 +51,7 @@ class HolidayRepository(Repository):
         row = c.fetchone()
         return dict(row) if row else None
 
-    def get_all(self) -> List[dict]:
+    def get_all(self) -> list[dict]:
         """获取全部节假日缓存记录。
 
         Returns:

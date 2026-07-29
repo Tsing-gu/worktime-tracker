@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 leave_dialog - 请假弹窗
 ==========================
@@ -10,7 +9,7 @@ leave_dialog - 请假弹窗
 
 from datetime import date
 
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtCore, QtWidgets
 
 from src.config import LEAVE_TYPES
 
@@ -46,7 +45,9 @@ class LeaveDialogUI(QtWidgets.QDialog):
         self.date_edit.setDisplayFormat("yyyy-MM-dd")
         self.date_edit.setCalendarPopup(True)
         if default_date:
-            self.date_edit.setDate(QtCore.QDate(default_date.year, default_date.month, default_date.day))
+            self.date_edit.setDate(
+                QtCore.QDate(default_date.year, default_date.month, default_date.day)
+            )
         else:
             self.date_edit.setDate(QtCore.QDate.currentDate())
         layout.addWidget(self.date_edit)

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 system - macOS 系统调用封装
 =============================
@@ -11,16 +10,15 @@ system - macOS 系统调用封装
 版本: 0.4.2
 """
 
-import subprocess
 import re
+import subprocess
 from datetime import datetime, timedelta
-from typing import Optional
 
 from src.config import ACTIVE_THRESHOLD_SECONDS, AWAY_THRESHOLD_SECONDS
 from src.utils.date_utils import compute_work_date
 
-
 # ─── HID 空闲时间 ─────────────────────────────────────────────
+
 
 def get_hid_idle_seconds() -> float:
     """
@@ -33,7 +31,9 @@ def get_hid_idle_seconds() -> float:
         空闲时长（秒），或 -1.0 表示读取失败
     """
     try:
-        result = subprocess.run(["ioreg", "-c", "IOHIDSystem"], capture_output=True, text=True, timeout=5)
+        result = subprocess.run(
+            ["ioreg", "-c", "IOHIDSystem"], capture_output=True, text=True, timeout=5
+        )
     except subprocess.TimeoutExpired:
         return -1.0
     for line in result.stdout.split("\n"):
@@ -45,7 +45,9 @@ def get_hid_idle_seconds() -> float:
     return -1.0
 
 
-def is_currently_active(idle_seconds: float, active_threshold: float = ACTIVE_THRESHOLD_SECONDS) -> bool:
+def is_currently_active(
+    idle_seconds: float, active_threshold: float = ACTIVE_THRESHOLD_SECONDS
+) -> bool:
     """
     判断当前是否有键鼠活动。
 
@@ -79,7 +81,7 @@ def is_user_away(idle_seconds: float, away_threshold: float = AWAY_THRESHOLD_SEC
     return idle_seconds > away_threshold
 
 
-def get_last_active_time(idle_seconds: float, now: datetime = None) -> Optional[datetime]:
+def get_last_active_time(idle_seconds: float, now: datetime = None) -> datetime | None:
     """
     根据空闲时长回推最后一次键鼠活动时刻。
 
@@ -100,6 +102,7 @@ def get_last_active_time(idle_seconds: float, now: datetime = None) -> Optional[
 
 
 # ─── 网络在线状态 ─────────────────────────────────────────────
+
 
 def get_network_status(office_domain: str = "") -> dict:
     """
@@ -122,7 +125,9 @@ def get_network_status(office_domain: str = "") -> dict:
     try:
         result = subprocess.run(
             ["ipconfig", "getpacket", "en0"],
-            capture_output=True, text=True, timeout=3,
+            capture_output=True,
+            text=True,
+            timeout=3,
         )
     except Exception:
         return {"at_office": False, "domain": ""}
@@ -139,7 +144,8 @@ def get_network_status(office_domain: str = "") -> dict:
 
 # ─── pmset 电源日志 ───────────────────────────────────────────
 
-def get_first_active_from_pmset(work_date, work_start_floor: str = "06:00") -> Optional[datetime]:
+
+def get_first_active_from_pmset(work_date, work_start_floor: str = "06:00") -> datetime | None:
     """
     从 `pmset -g log` 日志中回溯当天上班检测起始时间后首次 UserIsActive 事件。
 
@@ -160,7 +166,7 @@ def get_first_active_from_pmset(work_date, work_start_floor: str = "06:00") -> O
     date_str = work_date.isoformat()
     # 匹配 pmset 日志中的 UserIsActive 断言创建行
     pattern = re.compile(
-        r'^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \+\d{4}\s+Assertions\s+PID \d+\(.*?\) (?:Created|TurnedOn) UserIsActive'
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \+\d{4}\s+Assertions\s+PID \d+\(.*?\) (?:Created|TurnedOn) UserIsActive"
     )
 
     floor_h, floor_m = map(int, work_start_floor.split(":"))
@@ -188,6 +194,7 @@ def get_first_active_from_pmset(work_date, work_start_floor: str = "06:00") -> O
 
 # ─── macOS 系统通知 ───────────────────────────────────────────
 
+
 def send_notification(title: str, message: str, sound: str = "Glass"):
     """
     通过 osascript 发送 macOS 系统通知。
@@ -202,9 +209,13 @@ def send_notification(title: str, message: str, sound: str = "Glass"):
     message = message.replace("\\", "\\\\").replace('"', '\\"')
     try:
         subprocess.run(
-            ["osascript", "-e",
-             f'display notification "{message}" with title "{title}" sound name "{sound}"'],
-            capture_output=True, timeout=5,
+            [
+                "osascript",
+                "-e",
+                f'display notification "{message}" with title "{title}" sound name "{sound}"',
+            ],
+            capture_output=True,
+            timeout=5,
         )
     except Exception:
         pass

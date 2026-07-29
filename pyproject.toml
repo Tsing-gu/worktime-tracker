@@ -1,0 +1,172 @@
+# pyproject.toml - 统一工程配置入口
+#
+# 本文件统管 pytest / mypy / ruff / black 配置。
+# 运行时依赖仍由 requirements.txt 管理，开发依赖由 requirements-dev.txt 管理。
+#
+# mypy 策略：Phase 0 暂不开启全局 strict，随重构推进在 overrides 白名单里逐模块开启，
+# Phase 5 完成后把 strict = true 提到 [tool.mypy] 顶层并删除 overrides。
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "worktime-tracker"
+version = "0.15.3"
+description = "macOS 工时计算器 - 基于键鼠活动检测自动追踪每日工作时长"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=src",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+]
+markers = [
+    "manual: 手动交互测试，需人工操作，CI 与常规 pytest 跳过",
+    "macos: 依赖 macOS 系统调用 (ioreg/pmset/ipconfig/osascript)，非 macOS 环境跳过",
+    "gui: 需图形环境的 UI 测试 (pytest-qt)，CI 跳过，仅本地跑",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:PySide6.*",
+]
+
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "src/__init__.py",
+    "src/*/__init__.py",
+    "src/utils/version.py",
+    "tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+# Phase 0 关键：关闭所有「缺少类型注解」类检查，避免现有 6016 行代码爆错阻塞 pre-commit/CI
+# 这些选项在后续阶段重构各模块时，通过 [[tool.mypy.overrides]] 逐模块开启 strict 来收紧
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+disallow_untyped_calls = false
+check_untyped_defs = false
+# Phase 0 临时忽略的错误码（PySide6 存根不全 + 现有代码类型债）
+# 注意：mypy 1.20 在 pyproject.toml 解析 disable_error_code 数组有 bug，
+# 故通过 pre-commit 钩子的 args 传 --disable-error-code 参数实现
+# Phase 5 完成后，重构好的模块通过 overrides 单独开启 strict，再逐步移除这些忽略
+# 当前忽略的错误码（见 .pre-commit-config.yaml 的 mypy 钩子 args）：
+#   attr-defined     — PySide6: Qt.NoFocus / QDialog.Accepted 等枚举存根缺失
+#   assignment       — 现有代码: Connection = None / Optional 未标注等
+#   type-arg         — 现有代码: 裸 list/dict 缺少泛型参数
+#   no-any-return    — 现有代码: 返回 Any 但声明返回具体类型
+#   name-defined     — 延迟 import 的类型注解
+#   return-value     — 部分函数缺少 return
+#   import-untyped   — types-PySide6 存根不全
+
+# PySide6 类型存根不完整，忽略缺失 import 错误
+[[tool.mypy.overrides]]
+module = "PySide6.*"
+ignore_missing_imports = true
+
+# 已完成 strict 的模块（随重构推进逐步增加）：
+# 注意：mypy 在有 overrides 段时，未匹配模块会被当作「有显式配置」对待，
+# 因此不能用 strict = true（会改变全局默认），需逐项列出 strict 子选项。
+# 另需加 disallow_untyped_calls = false，避免被 strict 模块调用未重构模块时爆错。
+
+# Phase 0.4 完成：logging_setup strict
+[[tool.mypy.overrides]]
+module = "src.utils.logging_setup"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_calls = false  # 调用方（main.py）尚未重构
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+# Phase 1 完成：data 层 strict（但允许调用未重构的 services 层）
+[[tool.mypy.overrides]]
+module = "src.data.*"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_calls = false  # services 层尚未重构
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+# Phase 2 完成：settings_service strict
+[[tool.mypy.overrides]]
+module = "src.services.settings_service"
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_calls = false  # 调用方（worktime_service 等）尚未重构
+warn_return_any = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "SIM", # flake8-simplify
+    "C4",  # flake8-comprehensions
+    "TID", # flake8-tidy-imports
+]
+ignore = [
+    "E501",  # line too long（由 black 管理）
+    "E731",  # lambda 赋值（UI 代码中常见）
+    "SIM102",  # 嵌套 if 可合并（涉及可读性判断，不强制）
+    "SIM105",  # try-except-pass → contextlib.suppress（Phase 5 会用 logger 替换）
+    "SIM108",  # if-else → 三元运算符（嵌套函数调用的三元可读性差，不强制）
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]  # 测试中允许 assert False
+"src/ui/*" = ["B008"]  # UI 代码中允许默认参数实例化
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+extend-exclude = '''
+/(
+    \.git
+  | \.mypy_cache
+  | \.ruff_cache
+  | \.pytest_cache
+  | build
+  | dist
+  | htmlcov
+)/
+'''

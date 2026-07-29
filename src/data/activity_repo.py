@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 activity_repo - 活动事件仓储
 ============================
@@ -8,17 +7,18 @@ activity_repo - 活动事件仓储
 版本: 0.8.0
 """
 
-from datetime import datetime, date, timedelta
-from typing import List, Optional
+from datetime import date, datetime, timedelta
 
-from src.data.database import Repository, DT_FORMAT
+from src.data.database import DT_FORMAT, Repository
 from src.utils.date_utils import compute_work_date
 
 
 class ActivityRepository(Repository):
     """活动事件表仓储，提供键鼠活动记录的增删查。"""
 
-    def record(self, timestamp: datetime, idle_seconds: float, is_active: bool, at_office: bool = False):
+    def record(
+        self, timestamp: datetime, idle_seconds: float, is_active: bool, at_office: bool = False
+    ) -> None:
         """记录一条键鼠活动事件。
 
         自动根据 6:00 窗口规则计算归属工作日。
@@ -43,7 +43,7 @@ class ActivityRepository(Repository):
                 ),
             )
 
-    def cleanup(self, days: int = 14):
+    def cleanup(self, days: int = 14) -> None:
         """清理过期的活动记录，保留最近指定天数的数据。
 
         Args:
@@ -53,7 +53,7 @@ class ActivityRepository(Repository):
         with self.transaction() as conn:
             conn.execute("DELETE FROM activity_events WHERE timestamp < ?", (cutoff,))
 
-    def get_today(self, work_dt: date) -> List[dict]:
+    def get_today(self, work_dt: date) -> list[dict]:
         """获取指定工作日的全部活动记录。
 
         Args:
@@ -71,7 +71,7 @@ class ActivityRepository(Repository):
         rows = c.fetchall()
         return [dict(r) for r in rows]
 
-    def get_first_active(self, work_dt: date, at_office_only: bool = False) -> Optional[datetime]:
+    def get_first_active(self, work_dt: date, at_office_only: bool = False) -> datetime | None:
         """获取指定工作日最早一条 active 记录时间。
 
         Args:
@@ -102,7 +102,7 @@ class ActivityRepository(Repository):
             return datetime.strptime(row["timestamp"], DT_FORMAT)
         return None
 
-    def get_last_active_at_office(self, work_dt: date) -> Optional[datetime]:
+    def get_last_active_at_office(self, work_dt: date) -> datetime | None:
         """获取指定工作日最后一条 active + at_office 的记录时间。
 
         Args:

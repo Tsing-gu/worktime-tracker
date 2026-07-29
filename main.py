@@ -1,25 +1,26 @@
-# -*- coding: utf-8 -*-
 """
 main - 程序入口
 =================
 
 工时计算器的主入口，仅负责:
-    1. 创建 QApplication
-    2. 应用主题样式
-    3. 创建主窗口（内含 service.init() 完成数据库+节假日初始化）
-    4. 监听 dock 图标点击
+    1. 初始化日志系统
+    2. 创建 QApplication
+    3. 应用主题样式
+    4. 创建主窗口（内含 service.init() 完成数据库+节假日初始化）
+    5. 监听 dock 图标点击
 
 所有业务逻辑由 src/ 下的分层模块处理，此文件保持极简。
 
-版本: 0.8.0
+版本: 0.16.0
 """
 
 import sys
 
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtCore, QtWidgets
 
-from src.ui.theme import get_theme, build_qss
 from src.ui.main_window import MainWindowUI
+from src.ui.theme import build_qss, get_theme
+from src.utils.logging_setup import setup_logging
 from src.utils.version import get_version
 
 
@@ -47,13 +48,18 @@ class _DockReopenFilter(QtCore.QObject):
         return super().eventFilter(obj, event)
 
     def _reapply_theme(self):
-        from src.ui.theme import get_theme, build_qss, ThemeManagerUI
+        from src.ui.theme import ThemeManagerUI, build_qss, get_theme
+
         self._app.setStyleSheet(build_qss(get_theme()))
         ThemeManagerUI.instance().emit_changed()
 
 
 def main():
     """程序入口函数。"""
+    # 初始化日志系统（在其他模块加载前完成，确保各模块能用 getLogger）
+    logger = setup_logging()
+    logger.info("工时计算器 v%s 启动中...", get_version())
+
     app = QtWidgets.QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)  # 关闭窗口不退出，转入托盘
 
@@ -64,16 +70,18 @@ def main():
     _translators = []
     for qm in ("qtbase", "qt"):
         tr = QtCore.QTranslator()
-        if tr.load(QtCore.QLocale("zh_CN"), qm, "_", QtCore.QLibraryInfo.path(QtCore.QLibraryInfo.TranslationsPath)):
+        if tr.load(
+            QtCore.QLocale("zh_CN"),
+            qm,
+            "_",
+            QtCore.QLibraryInfo.path(QtCore.QLibraryInfo.TranslationsPath),
+        ):
             app.installTranslator(tr)
             _translators.append(tr)
 
     # 应用主题样式
     theme = get_theme()
     app.setStyleSheet(build_qss(theme))
-
-    # 打印版本信息
-    print(f"工时计算器 v{get_version()} 启动中...")
 
     # 创建并显示主窗口（service.init() 在 MainWindow 内部调用）
     window = MainWindowUI()

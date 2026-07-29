@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 update_dialog - 更新确认与下载进度弹窗
 ========================================
@@ -10,7 +9,7 @@ update_dialog - 更新确认与下载进度弹窗
 版本: 0.5.3
 """
 
-from PySide6 import QtWidgets, QtCore, QtGui
+from PySide6 import QtCore, QtWidgets
 
 from src.utils.version import get_version
 

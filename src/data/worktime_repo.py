@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 worktime_repo - 每日工时仓储
 ============================
@@ -8,10 +7,9 @@ worktime_repo - 每日工时仓储
 版本: 0.8.0
 """
 
-from datetime import datetime, date
-from typing import Optional, List
+from datetime import date, datetime
 
-from src.data.database import Repository, _UNSET
+from src.data.database import _UNSET, Repository
 
 _DT_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -19,7 +17,7 @@ _DT_FORMAT = "%Y-%m-%d %H:%M:%S"
 class DailyWorktimeRepository(Repository):
     """每日工时表仓储，提供上下班时间的增删改查。"""
 
-    def get(self, work_dt: date) -> Optional[dict]:
+    def get(self, work_dt: date) -> dict | None:
         """获取指定日期的工时记录（原始 dict）。
 
         Args:
@@ -37,23 +35,27 @@ class DailyWorktimeRepository(Repository):
     def upsert(
         self,
         work_dt: date,
-        start_time: datetime = _UNSET,
-        end_time: datetime = _UNSET,
-        total_hours: float = _UNSET,
-        required_hours: float = _UNSET,
-        leave_type: str = _UNSET,
-        is_confirmed: int = _UNSET,
-        has_anomaly: int = _UNSET,
-        anomaly_note: str = _UNSET,
-        source: str = _UNSET,
-        note: str = _UNSET,
-    ):
+        start_time: datetime | object = _UNSET,
+        end_time: datetime | object = _UNSET,
+        total_hours: float | object = _UNSET,
+        required_hours: float | object = _UNSET,
+        leave_type: str | object = _UNSET,
+        is_confirmed: int | object = _UNSET,
+        has_anomaly: int | object = _UNSET,
+        anomaly_note: str | object = _UNSET,
+        source: str | object = _UNSET,
+        note: str | object = _UNSET,
+    ) -> None:
         """插入或更新每日工时记录（upsert 语义）。
 
         使用 _UNSET 哨兵区分"未传入"（不更新该字段）与 None/NULL（置空该字段）。
         显式传 None 会将字段置为 NULL。
         """
-        start_str = start_time.strftime(_DT_FORMAT) if isinstance(start_time, datetime) else (_UNSET if start_time is _UNSET else None)
+        start_str = (
+            start_time.strftime(_DT_FORMAT)
+            if isinstance(start_time, datetime)
+            else (_UNSET if start_time is _UNSET else None)
+        )
 
         with self.transaction() as conn:
             c = conn.cursor()
@@ -64,11 +66,16 @@ class DailyWorktimeRepository(Repository):
                 updates = []
                 params = []
                 for col, val in [
-                    ("start_time", start_str), ("end_time", end_time),
-                    ("total_hours", total_hours), ("required_hours", required_hours),
-                    ("leave_type", leave_type), ("is_confirmed", is_confirmed),
-                    ("has_anomaly", has_anomaly), ("anomaly_note", anomaly_note),
-                    ("source", source), ("note", note),
+                    ("start_time", start_str),
+                    ("end_time", end_time),
+                    ("total_hours", total_hours),
+                    ("required_hours", required_hours),
+                    ("leave_type", leave_type),
+                    ("is_confirmed", is_confirmed),
+                    ("has_anomaly", has_anomaly),
+                    ("anomaly_note", anomaly_note),
+                    ("source", source),
+                    ("note", note),
                 ]:
                     if val is not _UNSET:
                         updates.append(f"{col} = ?")
@@ -102,7 +109,7 @@ class DailyWorktimeRepository(Repository):
                     ),
                 )
 
-    def get_range(self, start: date, end: date) -> List[dict]:
+    def get_range(self, start: date, end: date) -> list[dict]:
         """获取日期范围内的工时记录列表。
 
         Args:
@@ -121,7 +128,7 @@ class DailyWorktimeRepository(Repository):
         rows = c.fetchall()
         return [dict(r) for r in rows]
 
-    def delete(self, work_dt: date):
+    def delete(self, work_dt: date) -> None:
         """删除指定日期的工时记录。
 
         Args:
@@ -130,7 +137,7 @@ class DailyWorktimeRepository(Repository):
         with self.transaction() as conn:
             conn.execute("DELETE FROM daily_worktime WHERE work_date = ?", (work_dt.isoformat(),))
 
-    def clear_end_time(self, work_dt: date):
+    def clear_end_time(self, work_dt: date) -> None:
         """清除下班时间，恢复为"工作中"状态。
 
         将 end_time 和 total_hours 置 NULL。

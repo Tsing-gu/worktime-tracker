@@ -22,6 +22,11 @@ ENV/
 .coverage
 htmlcov/
 
+# 类型检查/代码风格缓存
+.mypy_cache/
+.ruff_cache/
+
+
 # 构建产物
 build/
 dist/
@@ -51,9 +56,8 @@ build_icon.iconset/
 config.local.py
 .obsidian/
 
-# 文档/测试/系统配置（不公开）
+# 文档/系统配置（不公开）
 ARCHITECTURE.md
 CLAUDE.md
 docs/
-tests/
 com.tsinggu.worktime-tracker.plist

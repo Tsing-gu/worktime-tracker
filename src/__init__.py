@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 work_hour_calculator
 =====================

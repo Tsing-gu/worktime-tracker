@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 date_utils - 纯日期计算工具
 ==========================
@@ -9,9 +8,7 @@ date_utils - 纯日期计算工具
 版本: 0.8.0
 """
 
-from datetime import datetime, date, timedelta
-from typing import Tuple, Optional, List
-
+from datetime import date, datetime, timedelta
 
 WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
@@ -32,7 +29,7 @@ def compute_work_date(ts: datetime) -> date:
     return ts.date()
 
 
-def get_week_range(dt: date, week_start: int = 1) -> Tuple[date, date]:
+def get_week_range(dt: date, week_start: int = 1) -> tuple[date, date]:
     """获取 dt 所在周的范围（周一到周日）。
 
     Args:
@@ -48,7 +45,7 @@ def get_week_range(dt: date, week_start: int = 1) -> Tuple[date, date]:
     return start, end
 
 
-def get_month_range(dt: date) -> Tuple[date, date]:
+def get_month_range(dt: date) -> tuple[date, date]:
     """获取 dt 所在月的范围。
 
     Args:
@@ -87,9 +84,7 @@ def is_workday(dt: date, holidays, weekly_work_days: int = 5) -> bool:
     """
     holiday = _find_holiday(dt, holidays)
     if holiday:
-        if holiday["is_off_day"] == 0:
-            return True
-        return False
+        return holiday["is_off_day"] == 0
     # 周末非调休 → 按 weekly_work_days 判定（>=7 全周工作，<=1 只看周一）
     weekly_work_days = max(0, min(weekly_work_days, 7))
     return dt.weekday() < weekly_work_days
@@ -100,7 +95,9 @@ def is_rest_day(dt: date, holidays, weekly_work_days: int = 5) -> bool:
     return not is_workday(dt, holidays, weekly_work_days)
 
 
-def get_period_range(today: date, holidays: list, weekly_work_days: int = 5) -> Optional[Tuple[date, date]]:
+def get_period_range(
+    today: date, holidays: list, weekly_work_days: int = 5
+) -> tuple[date, date] | None:
     """获取本期范围（两个连续非工作日段之间的工作日区间）。
 
     从 today 向前和向后搜索，找到第一个非工作日作为边界。
@@ -134,9 +131,7 @@ def get_period_range(today: date, holidays: list, weekly_work_days: int = 5) -> 
     return start, end
 
 
-def get_previous_workday(
-    today: date, holidays: list, weekly_work_days: int = 5
-) -> Optional[date]:
+def get_previous_workday(today: date, holidays: list, weekly_work_days: int = 5) -> date | None:
     """获取前一个工作日。
 
     Args:
@@ -156,7 +151,7 @@ def get_previous_workday(
     return None
 
 
-def _find_holiday(dt: date, holidays) -> Optional[dict]:
+def _find_holiday(dt: date, holidays) -> dict | None:
     """从节假日中查找指定日期。holidays 可以是 list 或 dict 索引。"""
     dt_str = dt.isoformat()
     if isinstance(holidays, dict):

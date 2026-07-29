@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 worktime_service - 工时业务编排层
 ====================================
@@ -20,36 +19,43 @@ UI 层只调此服务，不直接操作 database / tracker / calculator。
 版本: 0.8.0
 """
 
-from datetime import datetime, date, timedelta
-from typing import Optional
+from datetime import date, datetime, timedelta
+from typing import TYPE_CHECKING
 
 from src.config import (
-    SETTING_DAILY_REQUIRED_HOURS,
-    SETTING_WEEKLY_WORK_DAYS,
-    SETTING_OFF_THRESHOLD_MINUTES,
-    SETTING_OFF_TIME_FLOOR,
-    SETTING_WORK_START_FLOOR,
-    SETTING_NOTIFY_ON_TARGET,
-    SETTING_NOTIFY_ON_OFF,
-    SETTING_HOLIDAY_AUTO_EXCLUDE,
-    SETTING_OFFICE_NETWORK_DOMAIN,
-    SETTING_ONLY_OFFICE_TIME,
-    LEAVE_TYPES,
     HOLIDAY_API_URLS,
     HOLIDAY_CACHE_FILE,
+    LEAVE_TYPES,
+    SETTING_DAILY_REQUIRED_HOURS,
+    SETTING_HOLIDAY_AUTO_EXCLUDE,
+    SETTING_OFF_THRESHOLD_MINUTES,
+    SETTING_OFF_TIME_FLOOR,
+    SETTING_OFFICE_NETWORK_DOMAIN,
+    SETTING_ONLY_OFFICE_TIME,
+    SETTING_WEEKLY_WORK_DAYS,
+    SETTING_WORK_START_FLOOR,
 )
-from src.data.database import DT_FORMAT
-from src.data.models import TodayStatus, PeriodStats, WeekStats
-from src.data.settings_repo import SettingsRepository
-from src.data.activity_repo import ActivityRepository
-from src.data.worktime_repo import DailyWorktimeRepository
-from src.data.holiday_repo import HolidayRepository
-from src.core.tracker import WorkTrackerCore, PollResult
 from src.core.calculator import WorktimeCalculatorCore
-from src.services.holiday_service import HolidayService
-from src.utils.date_utils import compute_work_date, get_period_range, get_month_range
+from src.core.tracker import PollResult, WorkTrackerCore
+from src.data.activity_repo import ActivityRepository
+from src.data.database import DT_FORMAT
+from src.data.holiday_repo import HolidayRepository
+from src.data.models import PeriodStats, TodayStatus
+from src.data.settings_repo import SettingsRepository
+from src.data.worktime_repo import DailyWorktimeRepository
 from src.services.export_service import ExportService
-from src.utils.system import get_first_active_from_pmset, get_network_status, get_hid_idle_seconds, is_currently_active, get_last_active_time
+from src.services.holiday_service import HolidayService
+from src.utils.date_utils import compute_work_date, get_month_range, get_period_range
+from src.utils.system import (
+    get_first_active_from_pmset,
+    get_hid_idle_seconds,
+    get_last_active_time,
+    get_network_status,
+    is_currently_active,
+)
+
+if TYPE_CHECKING:
+    from src.services.update_service import UpdateService
 
 
 class WorktimeService:
@@ -68,9 +74,9 @@ class WorktimeService:
     def __init__(self):
         """初始化服务，创建内部 tracker 实例和各仓储/计算器。"""
         self.tracker = WorkTrackerCore()
-        self.current_work_date: Optional[date] = None
+        self.current_work_date: date | None = None
         self._checked_yesterday = False
-        self._activities_cleaned_date: Optional[date] = None
+        self._activities_cleaned_date: date | None = None
 
         # 仓储实例
         self.settings_repo = SettingsRepository()
@@ -86,13 +92,14 @@ class WorktimeService:
         )
 
         # 计算器（延迟初始化，需要从 DB 读取配置后才能构建）
-        self._calculator: Optional[WorktimeCalculatorCore] = None
+        self._calculator: WorktimeCalculatorCore | None = None
 
     # ─── 初始化 ────────────────────────────────────────────
 
     def init(self):
         """初始化数据库 + 节假日 + 回溯上班时间。"""
         from src.data.database import Repository
+
         Repository.init()
         today = date.today()
         self.holiday_service.ensure_loaded(today.year)
@@ -148,7 +155,9 @@ class WorktimeService:
         if start_to_record:
             daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
             self.worktime_repo.upsert(
-                work_date, start_time=start_to_record, source="auto",
+                work_date,
+                start_time=start_to_record,
+                source="auto",
                 required_hours=daily_required,
             )
 
@@ -280,7 +289,9 @@ class WorktimeService:
         off_total_min = off_time.hour * 60 + off_time.minute
         floor_total_min = off_floor_h * 60 + off_floor_m
         if off_total_min < floor_total_min:
-            off_time = off_time.replace(hour=off_floor_h, minute=off_floor_m, second=0, microsecond=0)
+            off_time = off_time.replace(
+                hour=off_floor_h, minute=off_floor_m, second=0, microsecond=0
+            )
 
         total_hours = (off_time - start_time).total_seconds() / 3600.0
         daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
@@ -336,7 +347,6 @@ class WorktimeService:
         """获取今日实时工时状态。"""
         today = compute_work_date(datetime.now())
         daily = self.worktime_repo.get(today)
-        daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
         return self._get_calculator().today_status(today, daily, now=datetime.now())
 
     # ─── 本期统计 ────────────────────────────────────────────
@@ -364,7 +374,7 @@ class WorktimeService:
 
     # ─── 次日确认 ──────────────────────────────────────────
 
-    def check_yesterday(self) -> Optional[tuple]:
+    def check_yesterday(self) -> tuple | None:
         """检查是否需要弹出次日确认提醒。
 
         只返回未确认（is_confirmed=0）的记录，已确认的不再弹窗。
@@ -399,7 +409,10 @@ class WorktimeService:
                 end_time += timedelta(days=1)
             total = (end_time - start_time).total_seconds() / 3600.0
             self.worktime_repo.upsert(
-                prev_date, end_time=end_time, total_hours=total, is_confirmed=1,
+                prev_date,
+                end_time=end_time,
+                total_hours=total,
+                is_confirmed=1,
             )
         else:
             self.worktime_repo.upsert(prev_date, is_confirmed=1)
@@ -413,9 +426,7 @@ class WorktimeService:
     def mark_leave(self, leave_date: date, leave_type: str):
         """标记请假。"""
         type_name = LEAVE_TYPES.get(leave_type, leave_type)
-        self.worktime_repo.upsert(
-            leave_date, leave_type=leave_type, note=f"请假-{type_name}"
-        )
+        self.worktime_repo.upsert(leave_date, leave_type=leave_type, note=f"请假-{type_name}")
 
     # ─── 手动补录 ──────────────────────────────────────────
 
@@ -431,17 +442,21 @@ class WorktimeService:
             total = (end_dt - start_dt).total_seconds() / 3600.0
             daily_required = float(self.settings_repo.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
             self.worktime_repo.upsert(
-                work_dt, start_time=start_dt, end_time=end_dt,
-                total_hours=total, required_hours=daily_required,
-                source="manual", is_confirmed=1,
+                work_dt,
+                start_time=start_dt,
+                end_time=end_dt,
+                total_hours=total,
+                required_hours=daily_required,
+                source="manual",
+                is_confirmed=1,
             )
             return total
         except Exception as e:
-            raise ValueError(f"时间格式不正确：{e}")
+            raise ValueError(f"时间格式不正确：{e}") from e
 
     # ─── 修改上班时间 ──────────────────────────────────────
 
-    def get_pmset_start_time(self) -> Optional[datetime]:
+    def get_pmset_start_time(self) -> datetime | None:
         """从 pmset 日志读取今天最早的 UserIsActive 事件时间。"""
         work_date = compute_work_date(datetime.now())
         work_start_floor = self.settings_repo.get(SETTING_WORK_START_FLOOR, "06:00")
@@ -461,7 +476,7 @@ class WorktimeService:
             self.worktime_repo.upsert(today, start_time=new_start, source="manual")
             return new_start
         except Exception as e:
-            raise ValueError(f"请输入 HH:MM 格式，如 09:30\n\n错误：{e}")
+            raise ValueError(f"请输入 HH:MM 格式，如 09:30\n\n错误：{e}") from e
 
     # ─── 清除记录 ──────────────────────────────────────────
 
@@ -507,7 +522,7 @@ class WorktimeService:
         """获取全部节假日缓存。"""
         return self.holiday_repo.get_all()
 
-    def get_daily_worktime(self, work_dt: date) -> Optional[dict]:
+    def get_daily_worktime(self, work_dt: date) -> dict | None:
         """获取指定日期的工时记录。"""
         return self.worktime_repo.get(work_dt)
 
@@ -518,6 +533,7 @@ class WorktimeService:
     def get_update_service(self) -> "UpdateService":
         """获取更新服务实例（注入 settings_repo，避免 UI 层触碰 data 层对象）。"""
         from src.services.update_service import UpdateService
+
         return UpdateService(self.settings_repo)
 
     # ─── 内部工具 ──────────────────────────────────────────

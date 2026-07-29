@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 update_service - 纯 Python 自动更新服务
 ==========================================
@@ -10,30 +9,31 @@ update_service - 纯 Python 自动更新服务
 """
 
 import os
+import subprocess
 import sys
 import tempfile
-import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional, Callable
-from urllib.request import urlopen, Request
+from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
 from src.config import (
-    UPDATE_FEED_URL,
-    UPDATE_FEED_FALLBACK_URL,
     SETTING_AUTO_UPDATE,
     SETTING_LAST_UPDATE_CHECK,
+    UPDATE_FEED_FALLBACK_URL,
+    UPDATE_FEED_URL,
 )
 from src.data.settings_repo import SettingsRepository
-from src.utils.version import get_version
-from src.utils.text import strip_html
 from src.utils.net import encode_url
+from src.utils.text import strip_html
+from src.utils.version import get_version
 
 
 @dataclass
 class UpdateInfo:
     """更新信息。"""
+
     version: str
     short_version: str
     description: str
@@ -63,7 +63,7 @@ class UpdateService:
 
     # ─── 版本检查 ──────────────────────────────────────────
 
-    def check_for_updates(self) -> Optional[UpdateInfo]:
+    def check_for_updates(self) -> UpdateInfo | None:
         """拉取 appcast.xml，解析最新版本，与本地 VERSION 对比。
 
         Returns:
@@ -85,9 +85,10 @@ class UpdateService:
             return info
         return None
 
-    def _fetch_feed(self) -> Optional[str]:
+    def _fetch_feed(self) -> str | None:
         """拉取 appcast.xml，主 URL 失败则用 jsDelivr 备用。"""
         import ssl
+
         ctx = ssl.create_default_context()
         ctx.check_hostname = False
         ctx.verify_mode = ssl.CERT_NONE
@@ -101,7 +102,7 @@ class UpdateService:
                 continue
         return None
 
-    def _parse_appcast(self, xml_content: str) -> Optional[UpdateInfo]:
+    def _parse_appcast(self, xml_content: str) -> UpdateInfo | None:
         """解析 appcast.xml，取第一个 item 作为最新版本。"""
         try:
             root = ElementTree.fromstring(xml_content)
@@ -134,14 +135,14 @@ class UpdateService:
     def _is_newer(self, remote_version: str) -> bool:
         """对比版本号，remote > local 返回 True。"""
         try:
-            local = get_version()
-            r = [int(x) for x in remote_version.split(".")]
-            l = [int(x) for x in local.split(".")]
-            while len(r) < 3:
-                r.append(0)
-            while len(l) < 3:
-                l.append(0)
-            return r > l
+            local_version = get_version()
+            remote_parts = [int(x) for x in remote_version.split(".")]
+            local_parts = [int(x) for x in local_version.split(".")]
+            while len(remote_parts) < 3:
+                remote_parts.append(0)
+            while len(local_parts) < 3:
+                local_parts.append(0)
+            return remote_parts > local_parts
         except Exception:
             return False
 
@@ -150,12 +151,12 @@ class UpdateService:
     def download_update(
         self,
         dmg_url: str,
-        progress_callback: Optional[Callable[[int, int], None]] = None,
-    ) -> Optional[str]:
+        progress_callback: Callable[[int, int], None] | None = None,
+    ) -> str | None:
         """下载 DMG 到临时目录。"""
         try:
             import ssl
-            import socket
+
             ctx = ssl.create_default_context()
             ctx.check_hostname = False
             ctx.verify_mode = ssl.CERT_NONE
@@ -180,7 +181,7 @@ class UpdateService:
                             return None
                         try:
                             buf = resp.read(chunk)
-                        except socket.timeout:
+                        except TimeoutError:
                             if self._cancelled:
                                 f.close()
                                 try:
@@ -237,7 +238,8 @@ class UpdateService:
         updater_script = os.path.join(self._temp_dir, "worktime_updater.sh")
 
         with open(updater_script, "w") as f:
-            f.write(f"""#!/bin/bash
+            f.write(
+                f"""#!/bin/bash
 set -e
 # 等待主进程完全退出
 sleep 2
@@ -255,15 +257,16 @@ hdiutil detach "{mount_point}" -force
 rm -f "{dmg_path}"
 open "{app_path}"
 rm -f "{updater_script}"
-""")
+"""
+            )
         os.chmod(updater_script, 0o755)
 
-        subprocess.Popen(["bash", updater_script],
-                         stdout=subprocess.DEVNULL,
-                         stderr=subprocess.DEVNULL)
+        subprocess.Popen(
+            ["bash", updater_script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
         return True
 
-    def _get_app_path(self) -> Optional[str]:
+    def _get_app_path(self) -> str | None:
         """获取当前 .app 的完整路径。"""
         try:
             if not getattr(sys, "frozen", False):

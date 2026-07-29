@@ -1,0 +1,65 @@
+# pre-commit 钩子配置
+#
+# 安装：pre-commit install
+# 手动全量跑：pre-commit run --all-files
+#
+# 钩子顺序：基础清理 → ruff (lint + format) → black → mypy
+
+repos:
+  # 基础清理
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+
+  # ruff: lint + 自动修复
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.5.0
+    hooks:
+      - id: ruff
+        args: ["--fix", "--exit-non-zero-on-fix"]
+      - id: ruff-format
+
+  # black: 格式化
+  - repo: https://github.com/psf/black
+    rev: 24.4.2
+    hooks:
+      - id: black
+        language_version: python3.12
+
+  # mypy: 类型检查
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.10.1
+    hooks:
+      - id: mypy
+        language_version: python3.12
+        additional_dependencies:
+          - types-PySide6>=6.7
+          - pytest>=8.0
+          - pytest-qt>=4.4
+        args: [
+          "--config-file=pyproject.toml",
+          # Phase 0 临时忽略的错误码（pyproject.toml 的 disable_error_code 数组在 mypy 1.20 解析有 bug）
+          # 这些在后续阶段逐模块重构时修复，修复后从下面移除对应错误码
+          "--disable-error-code=attr-defined",      # PySide6: Qt.NoFocus / QDialog.Accepted 等枚举存根缺失
+          "--disable-error-code=assignment",        # 现有代码: Connection = None / Optional 未标注等
+          "--disable-error-code=type-arg",           # 现有代码: 裸 list/dict 缺少泛型参数
+          "--disable-error-code=no-any-return",      # 现有代码: 返回 Any 但声明返回具体类型
+          "--disable-error-code=name-defined",       # 延迟 import 的类型注解
+          "--disable-error-code=return-value",       # 部分函数缺少 return
+          "--disable-error-code=import-untyped",     # types-PySide6 存根不全
+        ]
+        # 排除手动测试脚本和构建产物
+        exclude: |
+          (?x)^(
+              tests/test_clamshell\.py|
+              build/.*
+          )$

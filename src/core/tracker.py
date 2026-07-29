@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 tracker - 键鼠活动追踪 + 上下班判定
 =====================================
@@ -18,16 +17,14 @@ tracker - 键鼠活动追踪 + 上下班判定
 版本: 0.4.2
 """
 
-from datetime import datetime, timedelta
 from dataclasses import dataclass
-from typing import Optional
+from datetime import datetime
 
 from src.utils.system import (
     get_hid_idle_seconds,
-    is_currently_active,
     get_last_active_time,
+    is_currently_active,
 )
-from src.config import ACTIVE_THRESHOLD_SECONDS
 
 
 @dataclass
@@ -54,13 +51,14 @@ class PollResult:
         active:       当前是否有键鼠活动
         last_active:  最后一次活动时刻
     """
+
     event: str = "idle"
-    start_time: Optional[datetime] = None
-    off_time: Optional[datetime] = None
+    start_time: datetime | None = None
+    off_time: datetime | None = None
     worked_hours: float = 0.0
     idle: float = 0.0
     active: bool = False
-    last_active: Optional[datetime] = None
+    last_active: datetime | None = None
 
 
 class WorkTrackerCore:
@@ -81,12 +79,12 @@ class WorkTrackerCore:
 
     def __init__(self):
         """初始化追踪器，所有状态标记归零。"""
-        self.last_idle = None               # 上一次轮询的空闲值
-        self._start_recorded = False         # 是否已记录上班
-        self._off_notified = False           # 是否已通知下班
-        self._target_notified = False        # 是否已通知达标
-        self._manual_off = False             # 是否已手动下班
-        self._back_notified = False          # 是否已发送回来通知（防重复弹窗）
+        self.last_idle = None  # 上一次轮询的空闲值
+        self._start_recorded = False  # 是否已记录上班
+        self._off_notified = False  # 是否已通知下班
+        self._target_notified = False  # 是否已通知达标
+        self._manual_off = False  # 是否已手动下班
+        self._back_notified = False  # 是否已发送回来通知（防重复弹窗）
 
     def is_started(self) -> bool:
         """是否已记录上班。"""
@@ -98,11 +96,15 @@ class WorkTrackerCore:
 
     # ─── 上班回溯 ──────────────────────────────────────────
 
-    def check_start_recorded(self, now: datetime = None, work_start_floor: str = "06:00",
-                              existing_start: Optional[datetime] = None,
-                              existing_source: str = None,
-                              existing_end_time: Optional[datetime] = None,
-                              first_active: Optional[datetime] = None) -> Optional[datetime]:
+    def check_start_recorded(
+        self,
+        now: datetime | None = None,
+        work_start_floor: str = "06:00",
+        existing_start: datetime | None = None,
+        existing_source: str | None = None,
+        existing_end_time: datetime | None = None,
+        first_active: datetime | None = None,
+    ) -> datetime | None:
         """
         校验或回溯当天上班时间（纯逻辑，不写 DB）。
 
@@ -137,8 +139,12 @@ class WorkTrackerCore:
         if first_active:
             start_time = first_active
             # 如果早于上班检测起始时间，对齐到起始时间
-            if start_time.hour < floor_h or (start_time.hour == floor_h and start_time.minute < floor_m):
-                start_time = start_time.replace(hour=floor_h, minute=floor_m, second=0, microsecond=0)
+            if start_time.hour < floor_h or (
+                start_time.hour == floor_h and start_time.minute < floor_m
+            ):
+                start_time = start_time.replace(
+                    hour=floor_h, minute=floor_m, second=0, microsecond=0
+                )
             self._start_recorded = True
             return start_time
 
@@ -150,8 +156,8 @@ class WorkTrackerCore:
     def poll(
         self,
         now: datetime = None,
-        start_time: Optional[datetime] = None,
-        daily_end_time: Optional[datetime] = None,
+        start_time: datetime | None = None,
+        daily_end_time: datetime | None = None,
         daily_source: str = "auto",
         off_threshold_minutes: float = 60,
         off_time_floor: str = "19:00",
@@ -198,7 +204,9 @@ class WorkTrackerCore:
         self.last_idle = idle
 
         # ── 已下班（手动或自动）→ 检测用户是否回来 ──
-        is_off = self._manual_off or (daily_end_time and daily_source == "manual") or self._off_notified
+        is_off = (
+            self._manual_off or (daily_end_time and daily_source == "manual") or self._off_notified
+        )
         if is_off:
             if self._manual_off or (daily_end_time and daily_source == "manual"):
                 self._manual_off = True
@@ -235,7 +243,9 @@ class WorkTrackerCore:
                 if off_time and not is_early_morning:
                     off_total_min = off_time.hour * 60 + off_time.minute
                     if off_total_min < floor_total_min:
-                        off_time = off_time.replace(hour=off_floor_h, minute=off_floor_m, second=0, microsecond=0)
+                        off_time = off_time.replace(
+                            hour=off_floor_h, minute=off_floor_m, second=0, microsecond=0
+                        )
 
                 # 下班判定：已达时间下限，或凌晨时段直接判定
                 off_floor_met = now_total_min >= floor_total_min
@@ -246,7 +256,9 @@ class WorkTrackerCore:
                             event="off",
                             off_time=off_time,
                             worked_hours=(off_time - start_time).total_seconds() / 3600.0,
-                            idle=idle, active=active, last_active=last_active,
+                            idle=idle,
+                            active=active,
+                            last_active=last_active,
                         )
 
             # ── 达标判定: 工时达到要求 ──
@@ -255,7 +267,9 @@ class WorkTrackerCore:
                 return PollResult(
                     event="target_reached",
                     worked_hours=worked_hours,
-                    idle=idle, active=active, last_active=last_active,
+                    idle=idle,
+                    active=active,
+                    last_active=last_active,
                 )
 
             # ── 正常工作中 ──
@@ -263,7 +277,9 @@ class WorkTrackerCore:
                 event="working",
                 start_time=start_time,
                 worked_hours=worked_hours,
-                idle=idle, active=active, last_active=last_active,
+                idle=idle,
+                active=active,
+                last_active=last_active,
             )
 
         return PollResult(event="idle", idle=idle, active=active, last_active=last_active)

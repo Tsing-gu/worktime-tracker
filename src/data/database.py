@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 database - SQLite 数据层基类
 ============================
@@ -12,16 +11,20 @@ database - SQLite 数据层基类
     - holidays:         节假日缓存
     - settings:         键值设置
 
-版本: 0.8.0
+版本: 0.16.0
 """
 
-import sqlite3
+import logging
 import os
+import sqlite3
 import threading
-from pathlib import Path
+from collections.abc import Generator
 from contextlib import contextmanager
+from pathlib import Path
 
 from src.config import DB_PATH, DEFAULT_SETTINGS
+
+logger = logging.getLogger(__name__)
 
 # datetime 存入 SQLite 的统一格式串
 DT_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -36,9 +39,9 @@ class Repository:
     子类通过 self._conn 复用连接，多步操作用 with self.transaction() as conn 包裹。
     """
 
-    def __init__(self, db_path: str = DB_PATH):
+    def __init__(self, db_path: str = DB_PATH) -> None:
         self._db_path = db_path
-        self._conn: sqlite3.Connection = None
+        self._conn: sqlite3.Connection | None = None
         self._lock = threading.Lock()
 
     def _get_conn(self) -> sqlite3.Connection:
@@ -58,7 +61,7 @@ class Repository:
         return self._conn
 
     @contextmanager
-    def transaction(self):
+    def transaction(self) -> Generator[sqlite3.Connection, None, None]:
         """事务上下文管理器：自动 commit / rollback。
 
         使用 threading.Lock 保证写事务的串行化，避免多线程并发写冲突。
@@ -73,17 +76,18 @@ class Repository:
                 yield conn
                 conn.commit()
             except Exception:
+                logger.exception("事务回滚")
                 conn.rollback()
                 raise
 
-    def close(self):
+    def close(self) -> None:
         """关闭连接。"""
         if self._conn is not None:
             self._conn.close()
             self._conn = None
 
     @classmethod
-    def init(cls, db_path: str = DB_PATH):
+    def init(cls, db_path: str = DB_PATH) -> None:
         """初始化数据库：创建所有表 + 写入默认设置。
 
         使用 CREATE TABLE IF NOT EXISTS，可安全重复调用。
@@ -93,16 +97,19 @@ class Repository:
         conn.row_factory = sqlite3.Row
         c = conn.cursor()
 
-        c.execute("""CREATE TABLE IF NOT EXISTS activity_events (
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS activity_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             timestamp DATETIME NOT NULL,
             idle_seconds REAL NOT NULL,
             is_active INTEGER NOT NULL,
             work_date DATE NOT NULL,
             at_office INTEGER DEFAULT 0
-        )""")
+        )"""
+        )
 
-        c.execute("""CREATE TABLE IF NOT EXISTS daily_worktime (
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS daily_worktime (
             work_date DATE PRIMARY KEY,
             start_time DATETIME,
             end_time DATETIME,
@@ -114,18 +121,23 @@ class Repository:
             anomaly_note TEXT,
             source TEXT DEFAULT 'auto',
             note TEXT
-        )""")
+        )"""
+        )
 
-        c.execute("""CREATE TABLE IF NOT EXISTS holidays (
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS holidays (
             date DATE PRIMARY KEY,
             name TEXT,
             is_off_day INTEGER NOT NULL
-        )""")
+        )"""
+        )
 
-        c.execute("""CREATE TABLE IF NOT EXISTS settings (
+        c.execute(
+            """CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT
-        )""")
+        )"""
+        )
 
         c.execute("CREATE INDEX IF NOT EXISTS idx_activity_work_date ON activity_events(work_date)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_activity_ts ON activity_events(timestamp)")
@@ -138,9 +150,10 @@ class Repository:
 
         conn.commit()
         conn.close()
+        logger.info("数据库初始化完成：%s", db_path)
 
 
-def _ensure_column(cursor, table: str, column: str, definition: str):
+def _ensure_column(cursor: sqlite3.Cursor, table: str, column: str, definition: str) -> None:
     """检查表是否有指定列，没有则 ALTER TABLE ADD COLUMN。
 
     用于老库迁移，新库 CREATE TABLE 已含完整列不会触发。

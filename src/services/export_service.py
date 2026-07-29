@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 export_service - 数据导出服务
 ===============================
@@ -12,7 +11,6 @@ ExportService 类，提供 CSV 和 Excel 两种格式的工时数据导出。
 import csv
 import os
 from datetime import date
-from typing import Optional
 
 from src.config import EXPORT_DIR
 from src.data.worktime_repo import DailyWorktimeRepository
@@ -40,8 +38,17 @@ class ExportService:
                 f"工时记录_{start_date.isoformat()}_to_{end_date.isoformat()}.csv",
             )
 
-        headers = ["日期", "上班时间", "下班时间", "工时(小时)", "每日要求(小时)",
-                   "是否达标", "请假类型", "数据来源", "备注"]
+        headers = [
+            "日期",
+            "上班时间",
+            "下班时间",
+            "工时(小时)",
+            "每日要求(小时)",
+            "是否达标",
+            "请假类型",
+            "数据来源",
+            "备注",
+        ]
 
         with open(filepath, "w", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
@@ -60,7 +67,7 @@ class ExportService:
             - 居中对齐 + 细边框
         """
         from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 
         records = self._repo.get_range(start_date, end_date)
         if not filepath:
@@ -73,13 +80,24 @@ class ExportService:
         ws = wb.active
         ws.title = "工时记录"
 
-        headers = ["日期", "上班时间", "下班时间", "工时(小时)", "每日要求(小时)",
-                   "是否达标", "请假类型", "数据来源", "备注"]
+        headers = [
+            "日期",
+            "上班时间",
+            "下班时间",
+            "工时(小时)",
+            "每日要求(小时)",
+            "是否达标",
+            "请假类型",
+            "数据来源",
+            "备注",
+        ]
         header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
         header_font = Font(bold=True, color="FFFFFF", size=11)
         thin_border = Border(
-            left=Side(style="thin"), right=Side(style="thin"),
-            top=Side(style="thin"), bottom=Side(style="thin"),
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin"),
         )
         center_align = Alignment(horizontal="center", vertical="center")
 
@@ -130,6 +148,13 @@ class ExportService:
         source = r.get("source") or "auto"
         note = r.get("note") or ""
         return [
-            r["work_date"], start, end, f"{total:.2f}", f"{req:.1f}",
-            reached, leave, source, note,
+            r["work_date"],
+            start,
+            end,
+            f"{total:.2f}",
+            f"{req:.1f}",
+            reached,
+            leave,
+            source,
+            note,
         ]

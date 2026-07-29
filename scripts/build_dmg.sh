@@ -4,6 +4,10 @@
 # 用法：
 #   bash scripts/build_dmg.sh
 #
+# 前置条件：
+#   1. 已创建项目虚拟环境：python3.12 -m venv .venv
+#   2. 已安装运行时依赖：.venv/bin/pip install -r requirements.txt
+#
 # 产物：dist/工时计算器.dmg
 
 set -e
@@ -13,11 +17,21 @@ APP_NAME="工时计算器"
 APP_PATH="$PROJECT_DIR/dist/$APP_NAME.app"
 DMG_PATH="$PROJECT_DIR/dist/WorkTimeTracker.dmg"
 STAGING_DIR="$PROJECT_DIR/dist/dmg_staging"
+VENV_PYTHON="$PROJECT_DIR/.venv/bin/python"
+
+# 检查虚拟环境
+if [ ! -f "$VENV_PYTHON" ]; then
+    echo "❌ 未找到项目虚拟环境：$VENV_PYTHON"
+    echo "   请先运行："
+    echo "     python3.12 -m venv .venv"
+    echo "     .venv/bin/pip install -r requirements.txt"
+    exit 1
+fi
 
 cd "$PROJECT_DIR"
 
 echo "=== 1/4 PyInstaller 打包 ==="
-/opt/anaconda3/bin/python -m PyInstaller "$APP_NAME.spec" --noconfirm
+"$VENV_PYTHON" -m PyInstaller "$APP_NAME.spec" --noconfirm
 
 echo "=== 2/4 准备 DMG 临时目录 ==="
 rm -rf "$STAGING_DIR"

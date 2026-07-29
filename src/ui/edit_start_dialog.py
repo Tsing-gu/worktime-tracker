@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 edit_start_dialog - 修改上班时间弹窗
 ====================================
@@ -10,7 +9,7 @@ edit_start_dialog - 修改上班时间弹窗
 
 import threading
 
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtCore, QtWidgets
 
 
 class EditStartDialogUI(QtWidgets.QDialog):
@@ -63,9 +62,9 @@ class EditStartDialogUI(QtWidgets.QDialog):
         def worker():
             pmset_time = self._service.get_pmset_start_time()
             time_str = pmset_time.strftime("%H:%M") if pmset_time else ""
-            QtCore.QMetaObject.invokeMethod(self, "_on_pmset_result",
-                                            QtCore.Qt.QueuedConnection,
-                                            QtCore.Q_ARG(str, time_str))
+            QtCore.QMetaObject.invokeMethod(
+                self, "_on_pmset_result", QtCore.Qt.QueuedConnection, QtCore.Q_ARG(str, time_str)
+            )
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -78,8 +77,12 @@ class EditStartDialogUI(QtWidgets.QDialog):
             self.input_edit.setText(time_str)
         else:
             box = QtWidgets.QMessageBox(
-                QtWidgets.QMessageBox.Information, "pmset",
-                "未找到今天的活动记录", QtWidgets.QMessageBox.Ok, self)
+                QtWidgets.QMessageBox.Information,
+                "pmset",
+                "未找到今天的活动记录",
+                QtWidgets.QMessageBox.Ok,
+                self,
+            )
             for btn in box.buttons():
                 btn.setAutoDefault(False)
                 btn.setFocusPolicy(QtCore.Qt.NoFocus)

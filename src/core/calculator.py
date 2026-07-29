@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 calculator - 工时计算
 ====================
@@ -9,14 +8,17 @@ calculator - 工时计算
 版本: 0.8.0
 """
 
-from datetime import datetime, date, timedelta
-from typing import Optional, List
+from datetime import date, datetime, timedelta
 
-from src.data.models import WeekStats, TodayStatus, PeriodStats
 from src.data.database import DT_FORMAT
+from src.data.models import PeriodStats, TodayStatus, WeekStats
 from src.utils.date_utils import (
-    get_week_range, get_month_range, is_workday, is_rest_day,
-    get_period_range, get_previous_workday, build_holiday_index,
+    build_holiday_index,
+    get_month_range,
+    get_period_range,
+    get_previous_workday,
+    get_week_range,
+    is_workday,
 )
 
 
@@ -44,7 +46,9 @@ class WorktimeCalculatorCore:
         self.holiday_auto_exclude = holiday_auto_exclude
         self.weekly_work_days = weekly_work_days
 
-    def period_stats(self, today: date, records: list, now: datetime = None, period=None) -> PeriodStats:
+    def period_stats(
+        self, today: date, records: list, now: datetime = None, period=None
+    ) -> PeriodStats:
         """计算本期工时统计。
 
         本期 = 两个连续非工作日段之间的工作日区间。
@@ -81,7 +85,6 @@ class WorktimeCalculatorCore:
         total_workdays = stats["total_workdays"]
         worked_days = stats["worked_days"]
         worked_hours = stats["worked_hours"]
-        hours_before_today = stats["hours_before_today"]
         total_required_hours = total_workdays * self.daily_required
 
         # remaining_days/remaining_needed 以本周为口径计算
@@ -106,7 +109,7 @@ class WorktimeCalculatorCore:
     def today_status(
         self,
         today: date,
-        daily_record: Optional[dict],
+        daily_record: dict | None,
         now: datetime = None,
     ) -> TodayStatus:
         """计算今日实时工时状态。"""
@@ -145,7 +148,7 @@ class WorktimeCalculatorCore:
             source=daily_record.get("source"),
         )
 
-    def detect_anomalies(self, activities: list) -> Optional[str]:
+    def detect_anomalies(self, activities: list) -> str | None:
         """检测活动记录中的异常情况。"""
         if not activities:
             return None
@@ -176,7 +179,7 @@ class WorktimeCalculatorCore:
 
         return None
 
-    def previous_workday(self, today: date) -> Optional[date]:
+    def previous_workday(self, today: date) -> date | None:
         """获取前一个工作日。"""
         return get_previous_workday(today, self.holidays, self.weekly_work_days)
 
@@ -267,7 +270,11 @@ class WorktimeCalculatorCore:
         worked_days = stats["worked_days"]
         worked_days_before_today = stats["worked_days_before_today"]
         # 日均工时 = 今天之前的总工时 / 今天之前的已工作天数
-        daily_avg = stats["hours_before_today"] / worked_days_before_today if worked_days_before_today > 0 else 0
+        daily_avg = (
+            stats["hours_before_today"] / worked_days_before_today
+            if worked_days_before_today > 0
+            else 0
+        )
         progress = stats["worked_hours"] / target if target > 0 else 0
 
         return PeriodStats(

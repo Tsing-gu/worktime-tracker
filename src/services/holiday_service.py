@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 holiday_service - 节假日服务
 ============================
@@ -14,7 +13,6 @@ import os
 import urllib.request
 from datetime import date
 from pathlib import Path
-from typing import List, Optional
 
 from src.data.holiday_repo import HolidayRepository
 
@@ -57,6 +55,7 @@ class HolidayService:
             url = url_template.format(year=year)
             try:
                 import ssl
+
                 ctx = ssl.create_default_context()
                 ctx.check_hostname = False
                 ctx.verify_mode = ssl.CERT_NONE
@@ -135,7 +134,7 @@ class HolidayService:
         cache = {}
         if os.path.exists(self._cache_file):
             try:
-                with open(self._cache_file, "r") as f:
+                with open(self._cache_file) as f:
                     cache = json.load(f)
             except Exception:
                 cache = {}
@@ -148,7 +147,7 @@ class HolidayService:
         if not os.path.exists(self._cache_file):
             return []
         try:
-            with open(self._cache_file, "r") as f:
+            with open(self._cache_file) as f:
                 cache = json.load(f)
             return cache.get(str(year), [])
         except Exception:

@@ -1,0 +1,20 @@
+# 开发依赖 - 仅开发/测试/CI 环境安装
+# 运行时依赖见 requirements.txt
+#
+# 安装：pip install -r requirements-dev.txt
+
+# 测试框架
+pytest>=8.0
+pytest-cov>=5.0
+pytest-qt>=4.4
+
+# 类型检查
+mypy>=1.10,<2.0
+types-PySide6>=6.7
+
+# 代码风格
+ruff>=0.5
+black>=24.4
+
+# 提交钩子
+pre-commit>=3.7

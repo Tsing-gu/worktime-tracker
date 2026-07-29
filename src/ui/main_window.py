@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 main_window - 主窗口
 ======================
@@ -16,31 +15,27 @@ main_window - 主窗口
 版本: 0.4.2
 """
 
-import sys
-import os
 import threading
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 
-from PySide6 import QtWidgets, QtCore, QtGui
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from src.config import (
-    SETTING_DAILY_REQUIRED_HOURS,
-    SETTING_NOTIFY_ON_TARGET,
-    SETTING_NOTIFY_ON_OFF,
-    SETTING_HOLIDAY_AUTO_EXCLUDE,
     POLL_INTERVAL_MS,
+    SETTING_NOTIFY_ON_OFF,
+    SETTING_NOTIFY_ON_TARGET,
 )
-from src.services.worktime_service import WorktimeService
 from src.services import notification_service
-from src.utils.paths import resource_path
-from src.utils.date_utils import compute_work_date
-from src.ui.theme import get_theme
-from src.ui.settings_dialog import SettingsDialogUI
+from src.services.worktime_service import WorktimeService
 from src.ui.calendar_dialog import CalendarHistoryDialogUI
-from src.ui.leave_dialog import LeaveDialogUI
 from src.ui.confirm_dialog import ConfirmYesterdayDialogUI
-from src.ui.update_dialog import UpdateConfirmDialogUI, UpdateProgressDialogUI
 from src.ui.edit_start_dialog import EditStartDialogUI
+from src.ui.leave_dialog import LeaveDialogUI
+from src.ui.settings_dialog import SettingsDialogUI
+from src.ui.theme import get_theme
+from src.ui.update_dialog import UpdateConfirmDialogUI, UpdateProgressDialogUI
+from src.utils.date_utils import compute_work_date
+from src.utils.paths import resource_path
 
 
 class MainWindowUI(QtWidgets.QMainWindow):
@@ -88,6 +83,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
         self._on_startup()
 
         from src.ui.theme import ThemeManagerUI
+
         ThemeManagerUI.instance().theme_changed.connect(self.refresh_ui)
 
         self.poll_finished.connect(self._on_poll_finished)
@@ -110,26 +106,30 @@ class MainWindowUI(QtWidgets.QMainWindow):
     @staticmethod
     def _msg_information(parent, title, text):
         return MainWindowUI._msg_box(
-            QtWidgets.QMessageBox.Information, parent, title, text,
-            QtWidgets.QMessageBox.Ok)
+            QtWidgets.QMessageBox.Information, parent, title, text, QtWidgets.QMessageBox.Ok
+        )
 
     @staticmethod
     def _msg_warning(parent, title, text):
         return MainWindowUI._msg_box(
-            QtWidgets.QMessageBox.Warning, parent, title, text,
-            QtWidgets.QMessageBox.Ok)
+            QtWidgets.QMessageBox.Warning, parent, title, text, QtWidgets.QMessageBox.Ok
+        )
 
     @staticmethod
     def _msg_question(parent, title, text):
         return MainWindowUI._msg_box(
-            QtWidgets.QMessageBox.Question, parent, title, text,
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
+            QtWidgets.QMessageBox.Question,
+            parent,
+            title,
+            text,
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+        )
 
     # ─── UI 初始化 ─────────────────────────────────────────
 
     def _init_ui(self):
         """构建主界面所有可见元素。"""
-        self.setWindowIcon(QtGui.QIcon(resource_path('resources/app.icns')))
+        self.setWindowIcon(QtGui.QIcon(resource_path("resources/app.icns")))
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         layout = QtWidgets.QVBoxLayout(central)
@@ -139,7 +139,9 @@ class MainWindowUI(QtWidgets.QMainWindow):
         # ── 日期标题 ──
         today = compute_work_date(datetime.now())
         weekday_name = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"][today.weekday()]
-        self.date_label = QtWidgets.QLabel(f"{today.year}年{today.month}月{today.day}日 {weekday_name}")
+        self.date_label = QtWidgets.QLabel(
+            f"{today.year}年{today.month}月{today.day}日 {weekday_name}"
+        )
         self.date_label.setObjectName("DateLabel")
         self.date_label.setAlignment(QtCore.Qt.AlignCenter)
         layout.addWidget(self.date_label)
@@ -307,7 +309,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
         """初始化菜单栏托盘图标及其右键菜单。"""
         self.tray = QtWidgets.QSystemTrayIcon()
         self.tray.setToolTip("工时计算器")
-        icon = QtGui.QIcon(resource_path('resources/app.icns'))
+        icon = QtGui.QIcon(resource_path("resources/app.icns"))
         if icon.isNull():
             icon = self.style().standardIcon(QtWidgets.QStyle.SP_ComputerIcon)
         self.tray.setIcon(icon)
@@ -338,7 +340,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
         Args:
             status: TodayStatus 对象
         """
-        if not hasattr(self, 'tray') or not self.tray.isVisible():
+        if not hasattr(self, "tray") or not self.tray.isVisible():
             return
 
         if not status.has_started or status.end_time:
@@ -390,6 +392,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
 
     def _on_startup(self):
         """程序启动时调用：子线程初始化 service（含 Holiday API + 网络检测），不阻塞 UI。"""
+
         def worker():
             try:
                 self.service.init()
@@ -425,7 +428,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
         t = get_theme()
         reached = required > 0 and worked >= required
         pct = int(worked / required * 100) if required > 0 else 0
-        color = t['green'] if reached else t['primary']
+        color = t["green"] if reached else t["primary"]
         radius = "3px" if bar.objectName() == "CardBar" else "4px"
         bar.setMaximum(100)
         bar.setValue(min(100, pct))
@@ -468,38 +471,40 @@ class MainWindowUI(QtWidgets.QMainWindow):
         menu = QtWidgets.QMenu(self)
         menu.setAttribute(QtCore.Qt.WA_DeleteOnClose)
         t = get_theme()
-        menu.setStyleSheet(f"""
+        menu.setStyleSheet(
+            f"""
             QMenu {{
-                background-color: {t['card']};
-                border: 1px solid {t['stroke']};
+                background-color: {t["card"]};
+                border: 1px solid {t["stroke"]};
                 border-radius: 12px;
                 padding: 16px;
                 min-width: 200px;
             }}
             QMenu::item {{
                 padding: 4px 0;
-                color: {t['main']};
+                color: {t["main"]};
                 font-size: 14px;
                 background: transparent;
             }}
-            QMenu::item:disabled {{ color: {t['main']}; }}
-            QMenu::separator {{ height: 1px; background: {t['div']}; margin: 8px 0; }}
+            QMenu::item:disabled {{ color: {t["main"]}; }}
+            QMenu::separator {{ height: 1px; background: {t["div"]}; margin: 8px 0; }}
             QLabel {{
                 background: transparent;
-                color: {t['main']};
+                color: {t["main"]};
             }}
             QProgressBar {{
-                background-color: {t['track']};
+                background-color: {t["track"]};
                 border: none;
                 border-radius: 4px;
                 min-height: 8px;
                 max-height: 8px;
             }}
             QProgressBar::chunk {{
-                background-color: {t['primary']};
+                background-color: {t["primary"]};
                 border-radius: 4px;
             }}
-        """)
+        """
+        )
 
         # 菜单关闭后自动清理引用
         menu.aboutToHide.connect(self._on_tray_popup_hidden)
@@ -541,7 +546,9 @@ class MainWindowUI(QtWidgets.QMainWindow):
             remaining_lbl = QtWidgets.QLabel(f"已下班  工时 {worked:.1f}h")
             remaining_lbl.setObjectName("TrayOff")
         else:
-            from datetime import datetime as _dt, timedelta as _td
+            from datetime import datetime as _dt
+            from datetime import timedelta as _td
+
             remaining = max(0, required - worked)
             rh = int(remaining)
             rm = int((remaining - rh) * 60)
@@ -636,11 +643,14 @@ class MainWindowUI(QtWidgets.QMainWindow):
         取消 → 保持下班状态不变
         """
         box = QtWidgets.QMessageBox(
-            QtWidgets.QMessageBox.Question, "恢复计时",
+            QtWidgets.QMessageBox.Question,
+            "恢复计时",
             "检测到您已回来继续工作，是否恢复计时？\n\n"
             "确认 → 清除下班记录，继续追踪工时\n"
             "取消 → 保持当前下班状态",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, self)
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            self,
+        )
         for btn in box.buttons():
             btn.setAutoDefault(False)
             btn.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -755,40 +765,56 @@ class MainWindowUI(QtWidgets.QMainWindow):
 
         def on_progress(downloaded, total):
             # 通过 QMetaObject 在主线程更新 UI，避免跨线程操作 Qt 控件崩溃
-            QtCore.QMetaObject.invokeMethod(progress, "update_progress",
-                                            QtCore.Qt.QueuedConnection,
-                                            QtCore.Q_ARG(int, downloaded),
-                                            QtCore.Q_ARG(int, total))
+            QtCore.QMetaObject.invokeMethod(
+                progress,
+                "update_progress",
+                QtCore.Qt.QueuedConnection,
+                QtCore.Q_ARG(int, downloaded),
+                QtCore.Q_ARG(int, total),
+            )
 
         def worker():
             dmg_path = self.update_service.download_update(info.dmg_url, on_progress)
             # 检查是否被用户取消
             if progress.is_cancelled():
-                QtCore.QMetaObject.invokeMethod(progress, "set_status",
-                                                QtCore.Qt.QueuedConnection,
-                                                QtCore.Q_ARG(str, "已取消下载"))
-                QtCore.QMetaObject.invokeMethod(progress, "close",
-                                                QtCore.Qt.QueuedConnection)
+                QtCore.QMetaObject.invokeMethod(
+                    progress,
+                    "set_status",
+                    QtCore.Qt.QueuedConnection,
+                    QtCore.Q_ARG(str, "已取消下载"),
+                )
+                QtCore.QMetaObject.invokeMethod(progress, "close", QtCore.Qt.QueuedConnection)
                 return
             if not dmg_path or not self.update_service.verify_update(dmg_path, info.length):
-                QtCore.QMetaObject.invokeMethod(progress, "set_status",
-                                                QtCore.Qt.QueuedConnection,
-                                                QtCore.Q_ARG(str, "下载失败，请稍后重试"))
+                QtCore.QMetaObject.invokeMethod(
+                    progress,
+                    "set_status",
+                    QtCore.Qt.QueuedConnection,
+                    QtCore.Q_ARG(str, "下载失败，请稍后重试"),
+                )
                 return
-            QtCore.QMetaObject.invokeMethod(progress, "set_status",
-                                            QtCore.Qt.QueuedConnection,
-                                            QtCore.Q_ARG(str, "下载完成，正在安装并重启..."))
+            QtCore.QMetaObject.invokeMethod(
+                progress,
+                "set_status",
+                QtCore.Qt.QueuedConnection,
+                QtCore.Q_ARG(str, "下载完成，正在安装并重启..."),
+            )
             ok = self.update_service.install_and_restart(dmg_path)
             if not ok:
-                QtCore.QMetaObject.invokeMethod(progress, "set_status",
-                                                QtCore.Qt.QueuedConnection,
-                                                QtCore.Q_ARG(str, "无法自动安装（开发环境）"))
+                QtCore.QMetaObject.invokeMethod(
+                    progress,
+                    "set_status",
+                    QtCore.Qt.QueuedConnection,
+                    QtCore.Q_ARG(str, "无法自动安装（开发环境）"),
+                )
                 return
             # 安装脚本已启动，退出主进程让脚本替换 .app 并重启
-            QtCore.QMetaObject.invokeMethod(QtWidgets.QApplication.instance(), "quit",
-                                            QtCore.Qt.QueuedConnection)
+            QtCore.QMetaObject.invokeMethod(
+                QtWidgets.QApplication.instance(), "quit", QtCore.Qt.QueuedConnection
+            )
 
         import threading
+
         t = threading.Thread(target=worker, daemon=True)
         t.start()
 
@@ -853,7 +879,9 @@ class MainWindowUI(QtWidgets.QMainWindow):
         if status.start_time and not status.end_time:
             required = status.required_hours
             remaining = max(0, required - status.worked_hours)
-            from datetime import datetime as _dt, timedelta as _td
+            from datetime import datetime as _dt
+            from datetime import timedelta as _td
+
             eta = _dt.now() + _td(hours=remaining)
             self.eta_label.setText(eta.strftime("%H:%M"))
         elif status.end_time:
@@ -875,10 +903,16 @@ class MainWindowUI(QtWidgets.QMainWindow):
             bar.setMaximum(100)
             bar.setValue(0)
         else:
-            self._card_labels["本期概览_line1"].setText(f"已工作 {period.worked_days}天 / {period.total_workdays}天")
-            self._card_labels["本期概览_line2"].setText(f"累计 {period.worked_hours:.1f}h / 目标 {period.target_hours:.0f}h")
+            self._card_labels["本期概览_line1"].setText(
+                f"已工作 {period.worked_days}天 / {period.total_workdays}天"
+            )
+            self._card_labels["本期概览_line2"].setText(
+                f"累计 {period.worked_hours:.1f}h / 目标 {period.target_hours:.0f}h"
+            )
             if period.remaining_days > 1:
-                self._card_labels["本期概览_line3"].setText(f"日均 {period.daily_avg:.1f}h, 剩余{period.remaining_days}天 每天需{period.remaining_per_day:.1f}h达标")
+                self._card_labels["本期概览_line3"].setText(
+                    f"日均 {period.daily_avg:.1f}h, 剩余{period.remaining_days}天 每天需{period.remaining_per_day:.1f}h达标"
+                )
             else:
                 left = max(0, period.target_hours - period.worked_hours)
                 self._card_labels["本期概览_line3"].setText(f"今天干完就放假啦！还剩{left:.1f}h")
@@ -887,10 +921,16 @@ class MainWindowUI(QtWidgets.QMainWindow):
 
         # ── 本月卡片 ──
         month = self.service.get_month_stats()
-        self._card_labels["本月概览_line1"].setText(f"已工作 {month.worked_days}天 / {month.total_workdays}天")
-        self._card_labels["本月概览_line2"].setText(f"累计 {month.worked_hours:.1f}h / 目标 {month.target_hours:.0f}h")
+        self._card_labels["本月概览_line1"].setText(
+            f"已工作 {month.worked_days}天 / {month.total_workdays}天"
+        )
+        self._card_labels["本月概览_line2"].setText(
+            f"累计 {month.worked_hours:.1f}h / 目标 {month.target_hours:.0f}h"
+        )
         if month.remaining_days > 1:
-            self._card_labels["本月概览_line3"].setText(f"日均 {month.daily_avg:.1f}h, 剩余{month.remaining_days}天 每天需{month.remaining_per_day:.1f}h达标")
+            self._card_labels["本月概览_line3"].setText(
+                f"日均 {month.daily_avg:.1f}h, 剩余{month.remaining_days}天 每天需{month.remaining_per_day:.1f}h达标"
+            )
         else:
             left = max(0, month.target_hours - month.worked_hours)
             self._card_labels["本月概览_line3"].setText(f"今天干完就放假啦！还剩{left:.1f}h")
@@ -920,7 +960,9 @@ class MainWindowUI(QtWidgets.QMainWindow):
             try:
                 new_start = self.service.edit_start_time(new_str)
                 self.refresh_ui()
-                self._msg_information(self, "已修改", f"上班时间已更新为 {new_start.strftime('%H:%M')}")
+                self._msg_information(
+                    self, "已修改", f"上班时间已更新为 {new_start.strftime('%H:%M')}"
+                )
             except ValueError as e:
                 self._msg_warning(self, "格式错误", str(e))
 
@@ -938,12 +980,15 @@ class MainWindowUI(QtWidgets.QMainWindow):
             return
 
         box = QtWidgets.QMessageBox(
-            QtWidgets.QMessageBox.Question, "确认下班",
+            QtWidgets.QMessageBox.Question,
+            "确认下班",
             f"当前时间：{datetime.now().strftime('%H:%M')}\n"
             f"今日已工作：{status.worked_hours:.1f} 小时"
             f"{'  已达标' if status.is_target_reached else ''}\n\n"
             f"确认以当前时间记录下班？",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, self)
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            self,
+        )
         for btn in box.buttons():
             btn.setAutoDefault(False)
             btn.setFocusPolicy(QtCore.Qt.NoFocus)
@@ -957,9 +1002,11 @@ class MainWindowUI(QtWidgets.QMainWindow):
                 result = self.service.manual_off()
                 if result.event == "manual_off":
                     self._msg_information(
-                        self, "已下班",
+                        self,
+                        "已下班",
                         f"下班时间：{result.off_time.strftime('%H:%M')}\n"
-                        f"今日工时：{result.worked_hours:.2f} 小时")
+                        f"今日工时：{result.worked_hours:.2f} 小时",
+                    )
                     self.refresh_ui()
 
         box.finished.connect(on_finished)

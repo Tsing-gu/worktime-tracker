@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 calendar_dialog - 日历历史弹窗
 ================================
@@ -14,14 +13,14 @@ calendar_dialog - 日历历史弹窗
 版本: 0.4.2
 """
 
-from datetime import datetime, date, timedelta
+from datetime import date, datetime, timedelta
 
-from PySide6 import QtWidgets, QtCore, QtGui
+from PySide6 import QtCore, QtWidgets
 
-from src.config import SETTING_DAILY_REQUIRED_HOURS, LEAVE_TYPES
-from src.utils.date_utils import compute_work_date
+from src.config import LEAVE_TYPES, SETTING_DAILY_REQUIRED_HOURS
 from src.ui.leave_dialog import LeaveDialogUI
 from src.ui.theme import get_theme
+from src.utils.date_utils import compute_work_date
 
 
 class DayCellUI(QtWidgets.QFrame):
@@ -82,6 +81,7 @@ class DayCellUI(QtWidgets.QFrame):
             is_today:  是否为今天（加蓝色边框高亮）
         """
         from src.ui.theme import get_theme
+
         t = get_theme()
         primary = t["primary"]
         self.info_label.setText(text)
@@ -118,6 +118,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         self._pending_sub = None  # 当前非模态子弹窗引用，防止 GC
 
         from src.ui.theme import ThemeManagerUI
+
         ThemeManagerUI.instance().theme_changed.connect(self.load_data)
 
         layout = QtWidgets.QVBoxLayout(self)
@@ -202,7 +203,9 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         ]:
             dot = QtWidgets.QFrame()
             dot.setFixedSize(12, 12)
-            dot.setStyleSheet(f"background-color: {color}; border-radius: 6px; border: 1px solid {theme['stroke']};")
+            dot.setStyleSheet(
+                f"background-color: {color}; border-radius: 6px; border: 1px solid {theme['stroke']};"
+            )
             legend.addWidget(dot)
             legend.addWidget(QtWidgets.QLabel(label))
         hint = QtWidgets.QLabel("右键日期可请假/补录/清除")
@@ -300,7 +303,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             cell = DayCellUI(d.day, d, self.grid_container)
             cell.customContextMenuRequested.connect(lambda pos, c=cell: self.on_right_click(c))
 
-            is_today = (d == compute_work_date(datetime.now()))
+            is_today = d == compute_work_date(datetime.now())
 
             # ── 状态判定优先级 ──
             if rec and rec.get("leave_type") and rec["leave_type"] != "none":
@@ -309,11 +312,18 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
                 cell.set_status(leave_text, theme["cal_blue_bg"], theme["cal_blue_fg"], is_today)
             elif hol and hol.get("is_off_day"):
                 # 法定假日
-                cell.set_status(hol["name"], theme["cal_holiday_bg"], theme["cal_holiday_fg"], is_today)
+                cell.set_status(
+                    hol["name"], theme["cal_holiday_bg"], theme["cal_holiday_fg"], is_today
+                )
             elif hol and not hol.get("is_off_day"):
                 # 调休上班日
                 total = rec.get("total_hours", 0) if rec else 0
-                cell.set_status(f"调休 {total:.1f}h" if total else "调休上班", theme["cal_overtime_bg"], theme["cal_overtime_fg"], is_today)
+                cell.set_status(
+                    f"调休 {total:.1f}h" if total else "调休上班",
+                    theme["cal_overtime_bg"],
+                    theme["cal_overtime_fg"],
+                    is_today,
+                )
             elif rec and rec.get("total_hours"):
                 # 有工时记录
                 total = rec["total_hours"]
@@ -325,15 +335,29 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
                 start_short = start_str[11:16] if len(start_str) > 11 else ""
                 end_short = end_str[11:16] if len(end_str) > 11 else ""
                 if reached:
-                    cell.set_status(f"{total:.1f}h\n{start_short}-{end_short}", theme["cal_green_bg"], theme["cal_green_fg"], is_today)
+                    cell.set_status(
+                        f"{total:.1f}h\n{start_short}-{end_short}",
+                        theme["cal_green_bg"],
+                        theme["cal_green_fg"],
+                        is_today,
+                    )
                 else:
-                    cell.set_status(f"{total:.1f}h\n{start_short}-{end_short}", theme["cal_red_bg"], theme["cal_red_fg"], is_today)
+                    cell.set_status(
+                        f"{total:.1f}h\n{start_short}-{end_short}",
+                        theme["cal_red_bg"],
+                        theme["cal_red_fg"],
+                        is_today,
+                    )
             else:
                 # 无记录
                 if d.weekday() >= 5:
-                    cell.set_status("周末", theme["cal_weekend_bg"], theme["cal_weekend_fg"], is_today)
+                    cell.set_status(
+                        "周末", theme["cal_weekend_bg"], theme["cal_weekend_fg"], is_today
+                    )
                 else:
-                    cell.set_status("--", theme["cal_workday_bg"], theme["cal_workday_fg"], is_today)
+                    cell.set_status(
+                        "--", theme["cal_workday_bg"], theme["cal_workday_fg"], is_today
+                    )
 
             self.grid_layout.addWidget(cell, row, col)
             self._cells.append(cell)
@@ -362,8 +386,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         act_edit = menu.addAction("手动补录/编辑")
         act_clear = menu.addAction("清除记录")
         acts = {"leave": act_leave, "edit": act_edit, "clear": act_clear}
-        menu.triggered.connect(
-            lambda action: self._on_menu_action(action, work_date_str, acts))
+        menu.triggered.connect(lambda action: self._on_menu_action(action, work_date_str, acts))
         menu.aboutToHide.connect(menu.deleteLater)
         menu.popup(cell.mapToGlobal(QtCore.QPoint(10, 10)))
 
@@ -421,11 +444,12 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             if not start_str:
                 return
             self._input_dialog(
-                f"{work_date_str} 下班时间 (HH:MM)：", end_default,
-                lambda end_str: self._apply_manual_edit(wd, work_date_str, start_str, end_str))
+                f"{work_date_str} 下班时间 (HH:MM)：",
+                end_default,
+                lambda end_str: self._apply_manual_edit(wd, work_date_str, start_str, end_str),
+            )
 
-        self._input_dialog(
-            f"{work_date_str} 上班时间 (HH:MM)：", start_default, on_start)
+        self._input_dialog(f"{work_date_str} 上班时间 (HH:MM)：", start_default, on_start)
 
     def _apply_manual_edit(self, wd, work_date_str, start_str, end_str):
         """两级输入框都完成后保存记录。"""
@@ -436,8 +460,8 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             self.load_data()
         except ValueError as e:
             box = QtWidgets.QMessageBox(
-                QtWidgets.QMessageBox.Warning, "格式错误", str(e),
-                QtWidgets.QMessageBox.Ok, self)
+                QtWidgets.QMessageBox.Warning, "格式错误", str(e), QtWidgets.QMessageBox.Ok, self
+            )
             for btn in box.buttons():
                 btn.setAutoDefault(False)
                 btn.setFocusPolicy(QtCore.Qt.NoFocus)

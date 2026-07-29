@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 settings_dialog - 设置弹窗
 =============================
@@ -15,22 +14,22 @@ settings_dialog - 设置弹窗
 版本: 0.4.2
 """
 
-from PySide6 import QtWidgets, QtCore
-
 import threading
 
+from PySide6 import QtCore, QtWidgets
+
 from src.config import (
+    SETTING_AUTO_START,
     SETTING_DAILY_REQUIRED_HOURS,
-    SETTING_WEEKLY_WORK_DAYS,
+    SETTING_HOLIDAY_AUTO_EXCLUDE,
+    SETTING_NOTIFY_ON_OFF,
+    SETTING_NOTIFY_ON_TARGET,
     SETTING_OFF_THRESHOLD_MINUTES,
     SETTING_OFF_TIME_FLOOR,
-    SETTING_WORK_START_FLOOR,
-    SETTING_NOTIFY_ON_TARGET,
-    SETTING_NOTIFY_ON_OFF,
-    SETTING_AUTO_START,
-    SETTING_HOLIDAY_AUTO_EXCLUDE,
     SETTING_OFFICE_NETWORK_DOMAIN,
     SETTING_ONLY_OFFICE_TIME,
+    SETTING_WEEKLY_WORK_DAYS,
+    SETTING_WORK_START_FLOOR,
 )
 from src.ui.theme import get_theme
 
@@ -162,6 +161,7 @@ class SettingsDialogUI(QtWidgets.QDialog):
         # ── 版本号 + 检查更新 ──
         bottom_bar = QtWidgets.QHBoxLayout()
         from src.utils.version import get_version
+
         version_label = QtWidgets.QLabel(f"工时计算器 v{get_version()}")
         version_label.setObjectName("VersionLabel")
         bottom_bar.addWidget(version_label)
@@ -212,8 +212,7 @@ class SettingsDialogUI(QtWidgets.QDialog):
         """勾选「只记录在公司时间」时，若办公网络未设置则提示并阻止勾选。"""
         if state == QtCore.Qt.Checked and not self._office_domain:
             self._msg_warn(
-                self, "无法启用",
-                "请先在下方「办公网络」处记录办公网络，才能启用此功能。"
+                self, "无法启用", "请先在下方「办公网络」处记录办公网络，才能启用此功能。"
             )
             self.only_office.setCheckState(QtCore.Qt.Unchecked)
 
@@ -233,11 +232,15 @@ class SettingsDialogUI(QtWidgets.QDialog):
 
         def worker():
             from src.utils.system import get_network_status
+
             status = get_network_status()
             domain = status.get("domain", "")
-            QtCore.QMetaObject.invokeMethod(self, "_on_record_office_result",
-                                            QtCore.Qt.QueuedConnection,
-                                            QtCore.Q_ARG(str, domain))
+            QtCore.QMetaObject.invokeMethod(
+                self,
+                "_on_record_office_result",
+                QtCore.Qt.QueuedConnection,
+                QtCore.Q_ARG(str, domain),
+            )
 
         threading.Thread(target=worker, daemon=True).start()
 

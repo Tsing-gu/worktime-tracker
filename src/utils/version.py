@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 version - 版本管理 + CHANGELOG 自动更新
 ========================================
@@ -73,7 +72,7 @@ def get_version() -> str:
     """
     if not os.path.exists(_VERSION_FILE):
         return "0.0.0"
-    with open(_VERSION_FILE, "r", encoding="utf-8") as f:
+    with open(_VERSION_FILE, encoding="utf-8") as f:
         return f.read().strip()
 
 
@@ -145,7 +144,7 @@ def record_change(change_type: str, description: str) -> str:
     # 读取已有内容并拼接（新条目置顶）
     existing = ""
     if os.path.exists(_CHANGELOG_FILE):
-        with open(_CHANGELOG_FILE, "r", encoding="utf-8") as f:
+        with open(_CHANGELOG_FILE, encoding="utf-8") as f:
             existing = f.read()
 
     with open(_CHANGELOG_FILE, "w", encoding="utf-8") as f:

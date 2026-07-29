@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 settings_repo - 设置仓储
 ========================
@@ -7,8 +6,6 @@ settings_repo - 设置仓储
 
 版本: 0.8.0
 """
-
-from typing import Optional
 
 from src.data.database import Repository
 
@@ -24,7 +21,7 @@ class SettingsRepository(Repository):
         row = c.fetchone()
         return row[0] if row else default
 
-    def set(self, key: str, value: str):
+    def set(self, key: str, value: str) -> None:
         """写入或更新单个设置值（upsert 语义）。"""
         with self.transaction() as conn:
             conn.execute(

@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 confirm_dialog - 次日工时确认弹窗
 ====================================
@@ -9,9 +8,9 @@ confirm_dialog - 次日工时确认弹窗
 版本: 0.8.0
 """
 
-from datetime import datetime, date, timedelta
+from datetime import date, datetime
 
-from PySide6 import QtWidgets, QtCore
+from PySide6 import QtCore, QtWidgets
 
 
 class ConfirmYesterdayDialogUI(QtWidgets.QDialog):
@@ -51,7 +50,9 @@ class ConfirmYesterdayDialogUI(QtWidgets.QDialog):
         layout.addWidget(QtWidgets.QLabel(f"日期：{work_date.isoformat()}"))
 
         # ── 上班时间 ──
-        layout.addWidget(QtWidgets.QLabel(f"上班：{start_str[11:16] if len(start_str) > 11 else '无记录'}"))
+        layout.addWidget(
+            QtWidgets.QLabel(f"上班：{start_str[11:16] if len(start_str) > 11 else '无记录'}")
+        )
 
         # ── 下班时间（可编辑）──
         layout.addWidget(QtWidgets.QLabel("下班时间："))
@@ -90,5 +91,6 @@ class ConfirmYesterdayDialogUI(QtWidgets.QDialog):
     def get_end_time(self) -> datetime:
         """获取用户修改后的下班时间。"""
         t = self.end_time_edit.time()
-        return datetime(self.work_date.year, self.work_date.month, self.work_date.day,
-                         t.hour(), t.minute())
+        return datetime(
+            self.work_date.year, self.work_date.month, self.work_date.day, t.hour(), t.minute()
+        )
