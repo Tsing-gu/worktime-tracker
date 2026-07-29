@@ -85,15 +85,103 @@ python3.12 -m venv .venv
 - **VS Code**：`Cmd+Shift+P` → "Python: Select Interpreter" → 选择 `.venv/bin/python`
 - **PyCharm**：`Preferences → Project → Python Interpreter` → 指向 `.venv/bin/python`
 
-### 打包发布
+### 打包发布（完整发版流程）
+
+发版分 6 步，顺序不可调换。前 4 步本地执行，后 2 步推送 + Release。
+
+#### 1. 记录变更并 bump 版本号
+
+用 `record_change` 自动 bump VERSION + 写 CHANGELOG：
+
+```bash
+.venv/bin/python -c "from src.utils.version import record_change; print(record_change('changed', '重构代码架构分层，提升稳定性'))"
+```
+
+变更类型决定 bump 级别：
+
+| 类型 | bump | 适用场景 |
+|------|------|----------|
+| `added` | PATCH | 新增小功能 |
+| `fixed` | PATCH | 修复 bug |
+| `changed` | MINOR | 重构、功能变更 |
+| `removed` | MINOR | 移除功能 |
+
+> 描述只从用户视角写「能做什么/修了什么」，不提实现细节（函数名、重构手法）。
+
+#### 2. 打包 DMG
 
 ```bash
 bash scripts/build_dmg.sh
 ```
 
-产物：`dist/WorkTimeTracker.dmg`
+产物：`dist/WorkTimeTracker.dmg`，脚本末尾会打印字节数。
+
+#### 3. 更新 appcast.xml
+
+在 `appcast.xml` 顶部插入新的 `<item>`（新条目置顶，旧条目保留）：
+
+```xml
+<item>
+  <title>版本 0.XX.0</title>
+  <pubDate>Wed, 29 Jul 2026 22:20:00 +0800</pubDate>  <!-- RFC 822 格式 -->
+  <sparkle:version>40</sparkle:version>              <!-- 整数，递增 -->
+  <sparkle:shortVersionString>0.XX.0</sparkle:shortVersionString>
+  <description><![CDATA[<ul>
+<li>本次变更描述（与 CHANGELOG 一致）</li>
+</ul>]]></description>
+  <enclosure
+    url="https://github.com/Tsing-gu/worktime-tracker/releases/download/v0.XX.0/WorkTimeTracker.dmg"
+    length="字节数填这里"
+    sparkle:edSignature=""/>                          <!-- 保持空签名 -->
+</item>
+```
+
+关键字段：
+
+- `sparkle:version`：内部整数版本号，比上一条 +1
+- `sparkle:shortVersionString`：显示版本号（与 VERSION 一致）
+- `enclosure url`：指向即将创建的 GitHub Release 下载链接
+- `length`：`stat -f%z dist/WorkTimeTracker.dmg` 的输出
+- `sparkle:edSignature`：**保持空**（启用签名会导致部分用户更新失败）
+
+#### 4. 提交版本号与配置变更
+
+```bash
+git add VERSION CHANGELOG.md appcast.xml
+git commit -m "release: v0.XX.0 简短描述"
+```
+
+#### 5. 推送到 GitHub
+
+```bash
+git push origin main
+```
+
+#### 6. 创建 GitHub Release 并上传 DMG
+
+用 `gh` CLI（需 `gh auth login` 完成，token 有 `repo` scope）：
+
+```bash
+gh release create v0.XX.0 dist/WorkTimeTracker.dmg \
+  --title "v0.XX.0 简短标题" \
+  --notes "## 变更
+
+- 本次变更描述
+
+## 安装
+
+下载 WorkTimeTracker.dmg，拖拽到 Applications 即可使用。"
+```
+
+创建后用 `curl` 验证下载链接可用：
+
+```bash
+curl -sIL "https://github.com/Tsing-gu/worktime-tracker/releases/download/v0.XX.0/WorkTimeTracker.dmg" | grep -i "content-length"
+# 应输出 content-length: <字节数>，与本地 DMG 一致
+```
 
 > 打包脚本会自动检查 `.venv/` 是否存在，若不存在会提示先创建虚拟环境并安装依赖。
+> 发版前确认 `requirements-dev.txt` 包含 `pyinstaller>=6.0`（`build_dmg.sh` 依赖）。
 
 ## 项目结构
 
