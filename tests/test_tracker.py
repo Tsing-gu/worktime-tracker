@@ -476,3 +476,80 @@ class TestResetForNewDay:
             only_office=False,
         )
         assert result.event == "idle"
+
+
+class TestBackAfterRestart:
+    """程序重启后 DB 有 auto 下班记录时 back 事件触发。
+
+    修复漏洞：原 is_off 只认 source=="manual" 的 DB 记录，
+    程序重启后内存标志全为 False + DB 有 auto end_time 时 is_off=False，
+    用户回来活跃不触发 back 事件，无法弹窗恢复计时。
+    """
+
+    def test_back_event_with_db_auto_end_time(self, tracker: WorkTrackerCore) -> None:
+        """DB 有 auto 下班记录 + 用户回来活跃 → back 事件。"""
+        # 模拟重启场景：内存标志全为 False，DB 有 auto end_time
+        now = datetime(2026, 7, 15, 21, 0, 0)
+        result = tracker.poll(
+            now=now,
+            idle=3.0,  # 正在操作 → active=True 触发 back
+            start_time=datetime(2026, 7, 15, 9, 0, 0),
+            daily_end_time=datetime(2026, 7, 15, 19, 30, 0),  # DB 有 auto 下班记录
+            daily_source="auto",  # 关键：auto 而非 manual
+            off_threshold_minutes=60,
+            off_time_floor="19:00",
+            daily_required_hours=8.0,
+            at_office=True,
+            only_office=False,
+        )
+        assert result.event == "back"
+
+    def test_no_back_when_user_still_away(self, tracker: WorkTrackerCore) -> None:
+        """DB 有 auto 下班记录 + 用户未活跃 → idle 状态（不触发 back）。"""
+        now = datetime(2026, 7, 15, 21, 0, 0)
+        result = tracker.poll(
+            now=now,
+            idle=7200.0,  # 空闲 2 小时 → active=False，用户仍未回来
+            start_time=datetime(2026, 7, 15, 9, 0, 0),
+            daily_end_time=datetime(2026, 7, 15, 19, 30, 0),
+            daily_source="auto",
+            off_threshold_minutes=60,
+            off_time_floor="19:00",
+            daily_required_hours=8.0,
+            at_office=True,
+            only_office=False,
+        )
+        assert result.event == "idle"
+
+    def test_back_only_once_with_db_auto_end_time(self, tracker: WorkTrackerCore) -> None:
+        """back 事件只触发一次（防重复弹窗），第二次 poll → idle。"""
+        now = datetime(2026, 7, 15, 21, 0, 0)
+        # 第一次 poll → back
+        result1 = tracker.poll(
+            now=now,
+            idle=3.0,
+            start_time=datetime(2026, 7, 15, 9, 0, 0),
+            daily_end_time=datetime(2026, 7, 15, 19, 30, 0),
+            daily_source="auto",
+            off_threshold_minutes=60,
+            off_time_floor="19:00",
+            daily_required_hours=8.0,
+            at_office=True,
+            only_office=False,
+        )
+        assert result1.event == "back"
+
+        # 第二次 poll → idle（back 已通知，不再重复）
+        result2 = tracker.poll(
+            now=now,
+            idle=3.0,
+            start_time=datetime(2026, 7, 15, 9, 0, 0),
+            daily_end_time=datetime(2026, 7, 15, 19, 30, 0),
+            daily_source="auto",
+            off_threshold_minutes=60,
+            off_time_floor="19:00",
+            daily_required_hours=8.0,
+            at_office=True,
+            only_office=False,
+        )
+        assert result2.event == "idle"

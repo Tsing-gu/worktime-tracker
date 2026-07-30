@@ -102,6 +102,32 @@ class ActivityRepository(Repository):
             return datetime.strptime(row["timestamp"], DT_FORMAT)
         return None
 
+    def get_last_active(self, work_dt: date) -> datetime | None:
+        """获取指定工作日最后一条 active 记录时间（不筛选网络）。
+
+        用于跨天补录下班时间：相比 ``now - idle``（HIDIdleTime），查询
+        ``activity_events`` 表能准确反映关机场景下的最后操作时间
+        （关机后 HIDIdleTime 重置为 0，``now - idle`` 推算错误）。
+
+        Args:
+            work_dt: 工作日日期
+
+        Returns:
+            最后的活动时间，或 None
+        """
+        conn = self._get_conn()
+        c = conn.cursor()
+        c.execute(
+            "SELECT timestamp FROM activity_events "
+            "WHERE work_date = ? AND is_active = 1 "
+            "ORDER BY timestamp DESC LIMIT 1",
+            (work_dt.isoformat(),),
+        )
+        row = c.fetchone()
+        if row:
+            return datetime.strptime(row["timestamp"], DT_FORMAT)
+        return None
+
     def get_last_active_at_office(self, work_dt: date) -> datetime | None:
         """获取指定工作日最后一条 active + at_office 的记录时间。
 

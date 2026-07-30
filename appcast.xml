@@ -12,6 +12,21 @@
       4. length 为 DMG 文件字节数（stat -f%z 工时计算器.dmg）
     -->
     <item>
+      <title>版本 0.17.0</title>
+      <pubDate>Thu, 30 Jul 2026 16:25:00 +0800</pubDate>
+      <sparkle:version>44</sparkle:version>
+      <sparkle:shortVersionString>0.17.0</sparkle:shortVersionString>
+      <description><![CDATA[<ul>
+<li>设置页时间与数值字段改为下拉列表与带校验的输入框，提升输入体验</li>
+<li>修复下班判定在程序重启后无法恢复计时的问题</li>
+<li>修复关机下班后跨天补录下班时间错误的问题</li>
+</ul>]]></description>
+      <enclosure
+        url="https://github.com/Tsing-gu/worktime-tracker/releases/download/v0.17.0/WorkTimeTracker.dmg"
+        length="47435072"
+        sparkle:edSignature=""/>
+    </item>
+    <item>
       <title>版本 0.16.4</title>
       <pubDate>Thu, 30 Jul 2026 15:10:00 +0800</pubDate>
       <sparkle:version>43</sparkle:version>

@@ -207,9 +207,9 @@ class WorkTrackerCore:
         self.last_idle = idle
 
         # ── 已下班（手动或自动）→ 检测用户是否回来 ──
-        is_off = (
-            self._manual_off or (daily_end_time and daily_source == "manual") or self._off_notified
-        )
+        # 只要 DB 有下班记录就视为已下班（含 auto），保证程序重启后
+        # 也能正确触发 back 事件，避免用户回来后无法弹窗恢复计时。
+        is_off = self._manual_off or daily_end_time is not None or self._off_notified
         if is_off:
             if self._manual_off or (daily_end_time and daily_source == "manual"):
                 self._manual_off = True

@@ -189,3 +189,188 @@ class TestInitWorkDate:
         tracking_service.init_work_date()
 
         assert tracking_service.current_work_date == date(2026, 7, 15)
+
+
+class TestBackfillOffTime:
+    """_backfill_off_time：跨天补录前一天未记录的下班时间。
+
+    修复漏洞：原实现用 ``now - idle`` 推算下班时间，关机场景下
+    HIDIdleTime 重置为 0 会得到错误时间。改为查询 activity_events 表。
+    测试通过直接调用 _backfill_off_time（私有方法但测试可访问），
+    构造前一天的 activity_events + worktime 记录验证各场景。
+    """
+
+    @staticmethod
+    def _insert_prev_day(
+        svc: TrackingService,
+        prev_date: date,
+        start_time: datetime,
+        active_events: list[tuple[datetime, float, bool, bool]],
+        source: str = "auto",
+        end_time: datetime | None = None,
+    ) -> None:
+        """构造前一天的 worktime + activity_events 记录。
+
+        Args:
+            svc:              TrackingService 实例
+            prev_date:        前一天日期
+            start_time:       上班时间
+            active_events:    活动事件列表 [(timestamp, idle, is_active, at_office), ...]
+            source:           记录来源 auto/manual
+            end_time:         已有下班时间（None 表示未下班）
+        """
+        svc._worktime_repo.upsert(
+            prev_date,
+            start_time=start_time,
+            end_time=end_time,
+            total_hours=(
+                None if end_time is None else (end_time - start_time).total_seconds() / 3600.0
+            ),
+            source=source,
+            required_hours=8.0,
+        )
+        for ts, idle, is_active, at_office in active_events:
+            svc._activity_repo.record(ts, idle, is_active, at_office=at_office)
+
+    def test_shutdown_scenario(self, tracking_service: TrackingService) -> None:
+        """关机场景：前一天最后 active 22:00，次日 08:00 检测到跨天。
+
+        修复前：now - idle = 08:00 - 3s ≈ 07:59（今天），对齐到 19:00，
+                写入 end_time=今天 19:00，total_hours=34h（错误）。
+        修复后：查询 activity_events 得 22:00（前一天），22:00 已超过 19:00 不对齐，
+                写入 end_time=前一天 22:00，total_hours=13h（正确）。
+        """
+        prev_date = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        # 模拟关机：最后活跃 22:00，22:30 轮询记录空闲（active=False）后关机
+        events = [
+            (datetime(2026, 7, 14, 9, 30, 0), 1.0, True, True),
+            (datetime(2026, 7, 14, 22, 0, 0), 1.0, True, True),  # 最后活跃
+            (datetime(2026, 7, 14, 22, 30, 0), 1800.0, False, True),  # 空闲
+        ]
+        self._insert_prev_day(tracking_service, prev_date, start_time, events)
+
+        # 次日早上触发补录
+        now = datetime(2026, 7, 15, 8, 0, 0)
+        tracking_service._backfill_off_time(prev_date, now)
+
+        record = tracking_service._worktime_repo.get(prev_date)
+        assert record is not None
+        assert record["end_time"] is not None
+        # off_time=22:00 已超过 floor 19:00，不对齐，保持 22:00
+        assert record["end_time"] == datetime(2026, 7, 14, 22, 0, 0).strftime(DT_FORMAT)
+        # total_hours = 22:00 - 09:00 = 13h
+        assert record["total_hours"] == 13.0
+
+    def test_sleep_scenario(self, tracking_service: TrackingService) -> None:
+        """睡眠场景：前一天最后 active 23:30，次日 07:00 检测到跨天。"""
+        prev_date = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        events = [
+            (datetime(2026, 7, 14, 23, 30, 0), 1.0, True, True),  # 最后活跃 23:30
+        ]
+        self._insert_prev_day(tracking_service, prev_date, start_time, events)
+
+        now = datetime(2026, 7, 15, 7, 0, 0)
+        tracking_service._backfill_off_time(prev_date, now)
+
+        record = tracking_service._worktime_repo.get(prev_date)
+        assert record is not None
+        # 23:30 已超过 19:00，不对齐，保持 23:30
+        assert record["end_time"] == datetime(2026, 7, 14, 23, 30, 0).strftime(DT_FORMAT)
+        assert record["total_hours"] == 14.5
+
+    def test_aligns_to_floor(self, tracking_service: TrackingService) -> None:
+        """最后 active 18:00（早于 floor 19:00）→ 对齐到 19:00。"""
+        prev_date = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        events = [
+            (datetime(2026, 7, 14, 18, 0, 0), 1.0, True, True),  # 最后活跃 18:00
+        ]
+        self._insert_prev_day(tracking_service, prev_date, start_time, events)
+
+        now = datetime(2026, 7, 15, 7, 0, 0)
+        tracking_service._backfill_off_time(prev_date, now)
+
+        record = tracking_service._worktime_repo.get(prev_date)
+        assert record is not None
+        assert record["end_time"] == datetime(2026, 7, 14, 19, 0, 0).strftime(DT_FORMAT)
+        assert record["total_hours"] == 10.0
+
+    def test_skips_manual(self, tracking_service: TrackingService) -> None:
+        """手动记录不补录。"""
+        prev_date = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        events = [
+            (datetime(2026, 7, 14, 22, 0, 0), 1.0, True, True),
+        ]
+        self._insert_prev_day(tracking_service, prev_date, start_time, events, source="manual")
+
+        now = datetime(2026, 7, 15, 7, 0, 0)
+        tracking_service._backfill_off_time(prev_date, now)
+
+        # 手动记录不被覆盖
+        record = tracking_service._worktime_repo.get(prev_date)
+        assert record is not None
+        assert record["source"] == "manual"
+        assert record["end_time"] is None
+
+    def test_skips_already_has_end(self, tracking_service: TrackingService) -> None:
+        """已有下班记录不补录。"""
+        prev_date = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        existing_end = datetime(2026, 7, 14, 17, 0, 0)
+        events = [
+            (datetime(2026, 7, 14, 22, 0, 0), 1.0, True, True),
+        ]
+        self._insert_prev_day(
+            tracking_service, prev_date, start_time, events, end_time=existing_end
+        )
+
+        now = datetime(2026, 7, 15, 7, 0, 0)
+        tracking_service._backfill_off_time(prev_date, now)
+
+        # 已有下班记录不被覆盖
+        record = tracking_service._worktime_repo.get(prev_date)
+        assert record is not None
+        assert record["end_time"] == existing_end.strftime(DT_FORMAT)
+
+    def test_only_office_mode(self, tracking_service: TrackingService, monkeypatch) -> None:
+        """only_office_time=True 用 get_last_active_at_office 查询。"""
+        # 启用网络门控
+        tracking_service._settings.update(only_office_time=True)
+
+        prev_date = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        # 最后在公司 17:00，之后 22:00 在家办公
+        events = [
+            (datetime(2026, 7, 14, 9, 30, 0), 1.0, True, True),
+            (datetime(2026, 7, 14, 17, 0, 0), 1.0, True, True),  # 最后在公司
+            (datetime(2026, 7, 14, 22, 0, 0), 1.0, True, False),  # 在家办公（不算）
+        ]
+        self._insert_prev_day(tracking_service, prev_date, start_time, events)
+
+        now = datetime(2026, 7, 15, 7, 0, 0)
+        tracking_service._backfill_off_time(prev_date, now)
+
+        record = tracking_service._worktime_repo.get(prev_date)
+        assert record is not None
+        # off_time=17:00 对齐到 19:00
+        assert record["end_time"] == datetime(2026, 7, 14, 19, 0, 0).strftime(DT_FORMAT)
+        assert record["total_hours"] == 10.0
+
+    def test_no_active_events(self, tracking_service: TrackingService) -> None:
+        """无 active 记录（全是空闲）→ 不补录。"""
+        prev_date = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        events = [
+            (datetime(2026, 7, 14, 22, 30, 0), 1800.0, False, True),  # 只有空闲
+        ]
+        self._insert_prev_day(tracking_service, prev_date, start_time, events)
+
+        now = datetime(2026, 7, 15, 7, 0, 0)
+        tracking_service._backfill_off_time(prev_date, now)
+
+        record = tracking_service._worktime_repo.get(prev_date)
+        assert record is not None
+        assert record["end_time"] is None

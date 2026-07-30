@@ -101,6 +101,51 @@ class TestGetFirstActive:
         assert result == datetime(2026, 7, 15, 10, 0, 0)
 
 
+class TestGetLastActive:
+    """get_last_active：最后一条 active 记录（不筛选网络）。
+
+    用于跨天补录下班时间，需覆盖关机场景（不依赖 HIDIdleTime）。
+    """
+
+    def test_no_records_returns_none(self, repo: ActivityRepository) -> None:
+        """无活跃记录返回 None。"""
+        result = repo.get_last_active(date(2026, 7, 15))
+        assert result is None
+
+    def test_returns_latest_active(self, repo: ActivityRepository) -> None:
+        """多条活跃记录返回最后一条。"""
+        repo.record(datetime(2026, 7, 15, 9, 0, 0), 1.0, True)
+        repo.record(datetime(2026, 7, 15, 18, 0, 0), 1.0, True)  # 最后
+        repo.record(datetime(2026, 7, 15, 11, 0, 0), 1.0, True)
+
+        result = repo.get_last_active(date(2026, 7, 15))
+        assert result == datetime(2026, 7, 15, 18, 0, 0)
+
+    def test_excludes_idle_events(self, repo: ActivityRepository) -> None:
+        """排除空闲事件（is_active=0）。
+
+        场景：用户 22:00 最后操作后离开，22:30 轮询记录空闲，
+        应返回 22:00 而非 22:30。
+        """
+        repo.record(datetime(2026, 7, 15, 22, 0, 0), 1.0, True)  # 最后活跃
+        repo.record(datetime(2026, 7, 15, 22, 30, 0), 1800.0, False)  # 空闲
+
+        result = repo.get_last_active(date(2026, 7, 15))
+        assert result == datetime(2026, 7, 15, 22, 0, 0)
+
+    def test_includes_non_office(self, repo: ActivityRepository) -> None:
+        """不筛选 at_office，在家办公的记录也参与查询。"""
+        repo.record(datetime(2026, 7, 15, 9, 0, 0), 1.0, True, at_office=True)
+        repo.record(datetime(2026, 7, 15, 22, 0, 0), 1.0, True, at_office=False)  # 在家
+
+        # get_last_active 不筛选 at_office → 返回 22:00
+        result = repo.get_last_active(date(2026, 7, 15))
+        assert result == datetime(2026, 7, 15, 22, 0, 0)
+        # 对比：get_last_active_at_office 只查在公司 → 返回 9:00
+        result_office = repo.get_last_active_at_office(date(2026, 7, 15))
+        assert result_office == datetime(2026, 7, 15, 9, 0, 0)
+
+
 class TestGetLastActiveAtOffice:
     """get_last_active_at_office：最后在公司活跃记录。"""
 

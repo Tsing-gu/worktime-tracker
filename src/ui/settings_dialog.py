@@ -33,7 +33,10 @@ from src.config import (
     SETTING_WORK_START_FLOOR,
 )
 from src.ui.dialog_buttons import make_dialog_button
+from src.ui.hours_input import HoursInput
 from src.ui.theme import get_theme
+from src.ui.time_combo import TimeComboBox
+from src.ui.value_combo import ValueComboBox
 
 
 class SettingsDialogUI(QtWidgets.QDialog):
@@ -109,38 +112,24 @@ class SettingsDialogUI(QtWidgets.QDialog):
         work_form = QtWidgets.QFormLayout(work_group)
         work_form.setSpacing(10)
 
-        self.daily_hours = QtWidgets.QDoubleSpinBox()
-        self.daily_hours.setFocusPolicy(QtCore.Qt.ClickFocus)
-        self.daily_hours.setRange(1, 24)
-        self.daily_hours.setSingleStep(0.5)
-        self.daily_hours.setValue(float(settings.get(SETTING_DAILY_REQUIRED_HOURS, "8.0")))
-        work_form.addRow("每日工时要求（小时）", self.daily_hours)
+        self.daily_hours = HoursInput()
+        self.daily_hours.set_value(settings.get(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
+        work_form.addRow("每日工时要求（小时，0~24）", self.daily_hours)
 
-        self.weekly_days = QtWidgets.QSpinBox()
-        self.weekly_days.setFocusPolicy(QtCore.Qt.ClickFocus)
-        self.weekly_days.setRange(1, 7)
-        self.weekly_days.setValue(int(settings.get(SETTING_WEEKLY_WORK_DAYS, "5")))
+        self.weekly_days = ValueComboBox(start=1, stop=7, step=1, decimals=0, suffix=" 天")
+        self.weekly_days.set_value(int(settings.get(SETTING_WEEKLY_WORK_DAYS, "5")))
         work_form.addRow("每周工作天数", self.weekly_days)
 
-        self.off_threshold = QtWidgets.QSpinBox()
-        self.off_threshold.setFocusPolicy(QtCore.Qt.ClickFocus)
-        self.off_threshold.setRange(5, 480)
-        self.off_threshold.setSuffix(" 分钟")
-        self.off_threshold.setValue(int(settings.get(SETTING_OFF_THRESHOLD_MINUTES, "60")))
+        self.off_threshold = ValueComboBox(start=60, stop=180, step=60, decimals=0, suffix=" 分钟")
+        self.off_threshold.set_value(int(settings.get(SETTING_OFF_THRESHOLD_MINUTES, "60")))
         work_form.addRow("下班判定：离开等待时长", self.off_threshold)
 
-        self.off_floor = QtWidgets.QTimeEdit()
-        self.off_floor.setFocusPolicy(QtCore.Qt.ClickFocus)
-        floor_str = settings.get(SETTING_OFF_TIME_FLOOR, "19:00")
-        h, m = map(int, floor_str.split(":"))
-        self.off_floor.setTime(QtCore.QTime(h, m))
+        self.off_floor = TimeComboBox(step_minutes=30)
+        self.off_floor.set_time(settings.get(SETTING_OFF_TIME_FLOOR, "19:00"))
         work_form.addRow("下班判定：时间下限", self.off_floor)
 
-        self.work_start_floor = QtWidgets.QTimeEdit()
-        self.work_start_floor.setFocusPolicy(QtCore.Qt.ClickFocus)
-        start_floor_str = settings.get(SETTING_WORK_START_FLOOR, "06:00")
-        sh, sm = map(int, start_floor_str.split(":"))
-        self.work_start_floor.setTime(QtCore.QTime(sh, sm))
+        self.work_start_floor = TimeComboBox(step_minutes=30)
+        self.work_start_floor.set_time(settings.get(SETTING_WORK_START_FLOOR, "06:00"))
         work_form.addRow("上班检测起始时间", self.work_start_floor)
         main_layout.addWidget(work_group)
 
@@ -219,11 +208,11 @@ class SettingsDialogUI(QtWidgets.QDialog):
             {setting_key: value_str} 字典
         """
         return {
-            SETTING_DAILY_REQUIRED_HOURS: str(self.daily_hours.value()),
-            SETTING_WEEKLY_WORK_DAYS: str(self.weekly_days.value()),
-            SETTING_OFF_THRESHOLD_MINUTES: str(self.off_threshold.value()),
-            SETTING_OFF_TIME_FLOOR: self.off_floor.time().toString("HH:mm"),
-            SETTING_WORK_START_FLOOR: self.work_start_floor.time().toString("HH:mm"),
+            SETTING_DAILY_REQUIRED_HOURS: self.daily_hours.get_value(),
+            SETTING_WEEKLY_WORK_DAYS: self.weekly_days.get_value(),
+            SETTING_OFF_THRESHOLD_MINUTES: self.off_threshold.get_value(),
+            SETTING_OFF_TIME_FLOOR: self.off_floor.get_time(),
+            SETTING_WORK_START_FLOOR: self.work_start_floor.get_time(),
             SETTING_NOTIFY_ON_TARGET: "1" if self.notify_target.isChecked() else "0",
             SETTING_NOTIFY_ON_OFF: "1" if self.notify_off.isChecked() else "0",
             SETTING_AUTO_START: "1" if self.auto_start.isChecked() else "0",

@@ -32,7 +32,6 @@ from src.utils.date_utils import compute_work_date
 from src.utils.system import (
     get_first_active_from_pmset,
     get_hid_idle_seconds,
-    get_last_active_time,
     get_network_status,
     is_currently_active,
 )
@@ -126,7 +125,7 @@ class TrackingService:
         # 跨天检测
         new_work_date = compute_work_date(now)
         if new_work_date != self.current_work_date:
-            self._backfill_off_time(self.current_work_date, now, idle)
+            self._backfill_off_time(self.current_work_date, now)
             self.tracker.reset_for_new_day()
             self.current_work_date = new_work_date
             self._record.reset_yesterday_flag()
@@ -134,6 +133,14 @@ class TrackingService:
         active = is_currently_active(idle)
         settings = self._settings.get()
         at_office = get_network_status(settings.office_network_domain)["at_office"]
+
+        # HID 读取失败提示：only_office=False 时无降级路径，仅靠跨天补录
+        if idle < 0:
+            logger.warning(
+                "HID 空闲时间读取失败（ioreg 返回异常），下班判定将仅靠网络门控触发"
+                "（only_office=%s）",
+                settings.only_office_time,
+            )
 
         self._activity_repo.record(now, idle, active, at_office=at_office)
 
@@ -186,8 +193,13 @@ class TrackingService:
 
         return result
 
-    def _backfill_off_time(self, prev_date: date | None, now: datetime, idle: float) -> None:
-        """跨天时补录前一天未记录的下班时间（睡眠跨天场景）。"""
+    def _backfill_off_time(self, prev_date: date | None, now: datetime) -> None:
+        """跨天时补录前一天未记录的下班时间（睡眠/关机跨天场景）。
+
+        从 ``activity_events`` 表查询前一天的最后一个 active 记录作为下班时间，
+        相比 ``now - idle``（HIDIdleTime）能正确处理关机场景
+        （关机后 HIDIdleTime 重置为 0，``now - idle`` 推算会得到错误时间）。
+        """
         if prev_date is None:
             return
 
@@ -206,8 +218,11 @@ class TrackingService:
             if last_office and last_office > start_time:
                 off_time = last_office
         else:
-            if idle >= 0:
-                off_time = get_last_active_time(idle, now)
+            # 从 activity_events 表查询最后一条 active 记录，准确反映最后操作时间
+            # 修复: 原 now - idle 在关机场景下错误（HIDIdleTime 重置为 0）
+            last_active = self._activity_repo.get_last_active(prev_date)
+            if last_active and last_active > start_time:
+                off_time = last_active
 
         if off_time is None or off_time <= start_time:
             return
