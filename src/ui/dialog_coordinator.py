@@ -112,52 +112,85 @@ class DialogCoordinator(QtCore.QObject):
 
     # ─── 消息提示框 ────────────────────────────────────────
 
-    @staticmethod
-    def _msg_box(
-        icon: QtWidgets.QMessageBox.Icon,
-        parent: QtWidgets.QWidget,
+    def _show_msg_dialog(
+        self,
         title: str,
         text: str,
-        buttons: QtWidgets.QMessageBox.StandardButton = QtWidgets.QMessageBox.Ok,
-    ) -> QtWidgets.QMessageBox:
-        """封装 QMessageBox，禁用 autoDefault + StrongFocus，修复按钮需点两次。非模态 show()。"""
-        box = QtWidgets.QMessageBox(icon, title, text, buttons, parent)
-        for btn in box.buttons():
-            btn.setAutoDefault(False)
-            btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        box.show()
-        box.raise_()
-        box.activateWindow()
-        return box
+        *,
+        ok_text: str = "确定",
+        cancel_text: str | None = None,
+        on_ok: Callable[[], None] | None = None,
+        on_cancel: Callable[[], None] | None = None,
+    ) -> QtWidgets.QDialog:
+        """自定义消息提示框（用 make_dialog_button，避免 QMessageBox 焦点链问题）。
 
-    def msg_information(self, title: str, text: str) -> QtWidgets.QMessageBox:
-        """信息提示框。"""
-        return self._msg_box(
-            QtWidgets.QMessageBox.Information,
-            self._parent,
+        比 QMessageBox 的优势:
+        - 按钮走 make_dialog_button 封装，彻底关闭 autoDefault/default 焦点链
+        - 非模态 show() + raise_() + activateWindow()，首次点击即生效
+
+        Args:
+            title:       窗口标题
+            text:        提示正文
+            ok_text:     主按钮文字（默认"确定"）
+            cancel_text: 次按钮文字（None 则只显示主按钮）
+            on_ok:       主按钮回调
+            on_cancel:   次按钮回调
+        """
+        dlg = QtWidgets.QDialog(self._parent)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(320)
+        layout = QtWidgets.QVBoxLayout(dlg)
+        layout.setContentsMargins(24, 20, 24, 16)
+        layout.setSpacing(12)
+
+        label = QtWidgets.QLabel(text)
+        label.setWordWrap(True)
+        layout.addWidget(label)
+
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        if cancel_text is not None:
+            cancel_btn = make_dialog_button(cancel_text, "secondary", lambda: dlg.done(0))
+            btn_layout.addWidget(cancel_btn)
+        ok_btn = make_dialog_button(ok_text, "primary", lambda: dlg.done(1))
+        btn_layout.addWidget(ok_btn)
+        layout.addLayout(btn_layout)
+
+        def on_finished(code: int) -> None:
+            if code == 1 and on_ok is not None:
+                on_ok()
+            elif code == 0 and on_cancel is not None:
+                on_cancel()
+
+        dlg.finished.connect(on_finished)
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
+        return dlg
+
+    def msg_information(self, title: str, text: str) -> QtWidgets.QDialog:
+        """信息提示框（单按钮「确定」）。"""
+        return self._show_msg_dialog(title, text, ok_text="确定")
+
+    def msg_warning(self, title: str, text: str) -> QtWidgets.QDialog:
+        """警告提示框（单按钮「确定」）。"""
+        return self._show_msg_dialog(title, text, ok_text="确定")
+
+    def msg_question(
+        self,
+        title: str,
+        text: str,
+        on_yes: Callable[[], None] | None = None,
+        on_no: Callable[[], None] | None = None,
+    ) -> QtWidgets.QDialog:
+        """询问提示框（是/否），通过回调处理结果。"""
+        return self._show_msg_dialog(
             title,
             text,
-            QtWidgets.QMessageBox.Ok,
-        )
-
-    def msg_warning(self, title: str, text: str) -> QtWidgets.QMessageBox:
-        """警告提示框。"""
-        return self._msg_box(
-            QtWidgets.QMessageBox.Warning,
-            self._parent,
-            title,
-            text,
-            QtWidgets.QMessageBox.Ok,
-        )
-
-    def msg_question(self, title: str, text: str) -> QtWidgets.QMessageBox:
-        """询问提示框（是/否）。"""
-        return self._msg_box(
-            QtWidgets.QMessageBox.Question,
-            self._parent,
-            title,
-            text,
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            ok_text="是",
+            cancel_text="否",
+            on_ok=on_yes,
+            on_cancel=on_no,
         )
 
     # ─── 弹窗方法 ──────────────────────────────────────────
@@ -195,33 +228,24 @@ class DialogCoordinator(QtCore.QObject):
             self.msg_information("提示", "今天已经下班了")
             return
 
-        box = QtWidgets.QMessageBox(
-            QtWidgets.QMessageBox.Question,
-            "确认下班",
+        text = (
             f"当前时间：{datetime.now().strftime('%H:%M')}\n"
             f"今日已工作：{status.worked_hours:.1f} 小时"
             f"{'  已达标' if status.is_target_reached else ''}\n\n"
-            f"确认以当前时间记录下班？",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-            self._parent,
+            f"确认以当前时间记录下班？"
         )
-        for btn in box.buttons():
-            btn.setAutoDefault(False)
-            btn.setFocusPolicy(QtCore.Qt.StrongFocus)
 
-        def on_finished(result_code: int) -> None:
-            if result_code == QtWidgets.QMessageBox.Yes:
-                result = self._tracking.manual_off()
-                if result.event == "manual_off" and result.off_time is not None:
-                    self.msg_information(
-                        "已下班",
-                        f"下班时间：{result.off_time.strftime('%H:%M')}\n"
-                        f"今日工时：{result.worked_hours:.2f} 小时",
-                    )
-                    self.refresh_requested.emit()
+        def on_yes() -> None:
+            result = self._tracking.manual_off()
+            if result.event == "manual_off" and result.off_time is not None:
+                self.msg_information(
+                    "已下班",
+                    f"下班时间：{result.off_time.strftime('%H:%M')}\n"
+                    f"今日工时：{result.worked_hours:.2f} 小时",
+                )
+                self.refresh_requested.emit()
 
-        # QMessageBox 也是 QDialog 的子类，可用 open 统一管理
-        self.open(box, on_finished)
+        self.msg_question("确认下班", text, on_yes=on_yes)
 
     def on_settings(self) -> None:
         """打开设置弹窗（非模态），确认后保存设置。"""
@@ -352,22 +376,14 @@ class DialogCoordinator(QtCore.QObject):
         确认 → 调用 tracking.resume_after_off() 清除下班记录，恢复"工作中"状态
         取消 → 保持下班状态不变
         """
-        box = QtWidgets.QMessageBox(
-            QtWidgets.QMessageBox.Question,
-            "恢复计时",
+        text = (
             "检测到您已回来继续工作，是否恢复计时？\n\n"
             "确认 → 清除下班记录，继续追踪工时\n"
-            "取消 → 保持当前下班状态",
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-            self._parent,
+            "取消 → 保持当前下班状态"
         )
-        for btn in box.buttons():
-            btn.setAutoDefault(False)
-            btn.setFocusPolicy(QtCore.Qt.StrongFocus)
 
-        def on_finished(result_code: int) -> None:
-            if result_code == QtWidgets.QMessageBox.Yes:
-                self._tracking.resume_after_off()
-                self.refresh_requested.emit()
+        def on_yes() -> None:
+            self._tracking.resume_after_off()
+            self.refresh_requested.emit()
 
-        self.open(box, on_finished)
+        self.msg_question("恢复计时", text, on_yes=on_yes)

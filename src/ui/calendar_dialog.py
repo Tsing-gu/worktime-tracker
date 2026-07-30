@@ -468,13 +468,23 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             self._record.manual_record(wd, start_str, end_str)
             self.load_data()
         except ValueError as e:
-            box = QtWidgets.QMessageBox(
-                QtWidgets.QMessageBox.Warning, "格式错误", str(e), QtWidgets.QMessageBox.Ok, self
-            )
-            for btn in box.buttons():
-                btn.setAutoDefault(False)
-                btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-            box.show()
+            dlg = QtWidgets.QDialog(self)
+            dlg.setWindowTitle("格式错误")
+            dlg.setMinimumWidth(320)
+            layout = QtWidgets.QVBoxLayout(dlg)
+            layout.setContentsMargins(24, 20, 24, 16)
+            layout.setSpacing(12)
+            label = QtWidgets.QLabel(str(e))
+            label.setWordWrap(True)
+            layout.addWidget(label)
+            btn_layout = QtWidgets.QHBoxLayout()
+            btn_layout.addStretch()
+            ok_btn = make_dialog_button("确定", "primary", dlg.accept)
+            btn_layout.addWidget(ok_btn)
+            layout.addLayout(btn_layout)
+            dlg.show()
+            dlg.raise_()
+            dlg.activateWindow()
 
     def _input_dialog(
         self, label_text: str, default_text: str, on_accepted: Callable[[str], None]
@@ -508,24 +518,32 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         dialog.show()
 
     def clear_record(self, work_date_str: str) -> None:
-        """
-        清除指定日期的工时记录（非模态二次确认）。
+        """清除指定日期的工时记录（非模态二次确认）。"""
+        dlg = QtWidgets.QDialog(self)
+        dlg.setWindowTitle("确认")
+        dlg.setMinimumWidth(320)
+        layout = QtWidgets.QVBoxLayout(dlg)
+        layout.setContentsMargins(24, 20, 24, 16)
+        layout.setSpacing(12)
+        label = QtWidgets.QLabel(f"确认清除 {work_date_str} 的记录？")
+        label.setWordWrap(True)
+        layout.addWidget(label)
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        cancel_btn = make_dialog_button("取消", "secondary", lambda: dlg.done(0))
+        ok_btn = make_dialog_button("确认", "primary", lambda: dlg.done(1))
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(ok_btn)
+        layout.addLayout(btn_layout)
+        self._pending_sub = dlg
 
-        Args:
-            work_date_str: 工作日日期字符串
-        """
-        msg = QtWidgets.QMessageBox(self)
-        msg.setWindowTitle("确认")
-        msg.setText(f"确认清除 {work_date_str} 的记录？")
-        yes_btn = msg.addButton("确认", QtWidgets.QMessageBox.YesRole)
-        msg.addButton("取消", QtWidgets.QMessageBox.NoRole)
-        self._pending_sub = msg
-
-        def on_finished(_: int) -> None:
+        def on_finished(code: int) -> None:
             self._pending_sub = None
-            if msg.clickedButton() == yes_btn:
+            if code == 1:
                 self._record.clear_record(work_date_str)
                 self.load_data()
 
-        msg.finished.connect(on_finished)
-        msg.show()
+        dlg.finished.connect(on_finished)
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()

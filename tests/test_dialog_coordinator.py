@@ -110,27 +110,54 @@ class TestMsgBoxes:
     """msg_information / msg_warning / msg_question。"""
 
     def test_msg_information(self, coordinator: DialogCoordinator, qtbot) -> None:
-        """msg_information 弹出 Information 类型消息框。"""
-        box = coordinator.msg_information("标题", "内容")
-        qtbot.addWidget(box)
-        assert box.icon() == QtWidgets.QMessageBox.Information
-        assert "内容" in box.text()
-        box.close()
+        """msg_information 弹出对话框，标题和正文正确。"""
+        dlg = coordinator.msg_information("标题", "内容")
+        qtbot.addWidget(dlg)
+        assert dlg.windowTitle() == "标题"
+        # 对话框内应有一个 QLabel 包含正文
+        labels = dlg.findChildren(QtWidgets.QLabel)
+        assert any("内容" in lbl.text() for lbl in labels)
+        dlg.close()
 
     def test_msg_warning(self, coordinator: DialogCoordinator, qtbot) -> None:
-        """msg_warning 弹出 Warning 类型消息框。"""
-        box = coordinator.msg_warning("警告", "警告内容")
-        qtbot.addWidget(box)
-        assert box.icon() == QtWidgets.QMessageBox.Warning
-        box.close()
+        """msg_warning 弹出对话框，标题正确。"""
+        dlg = coordinator.msg_warning("警告", "警告内容")
+        qtbot.addWidget(dlg)
+        assert dlg.windowTitle() == "警告"
+        dlg.close()
 
     def test_msg_question(self, coordinator: DialogCoordinator, qtbot) -> None:
-        """msg_question 弹出 Question 类型消息框（是/否按钮）。"""
-        box = coordinator.msg_question("确认", "是否继续？")
-        qtbot.addWidget(box)
-        assert box.icon() == QtWidgets.QMessageBox.Question
-        assert box.standardButtons() == (QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
-        box.close()
+        """msg_question 弹出对话框，含是/否两个按钮。"""
+        dlg = coordinator.msg_question("确认", "是否继续？")
+        qtbot.addWidget(dlg)
+        assert dlg.windowTitle() == "确认"
+        # 对话框内应有两个 QPushButton（是 + 否）
+        buttons = dlg.findChildren(QtWidgets.QPushButton)
+        assert len(buttons) == 2
+        btn_texts = {b.text() for b in buttons}
+        assert btn_texts == {"是", "否"}
+        dlg.close()
+
+    def test_msg_question_triggers_on_yes(self, coordinator: DialogCoordinator, qtbot) -> None:
+        """msg_question 点「是」触发 on_yes 回调。"""
+        result = []
+        dlg = coordinator.msg_question("确认", "是否继续？", on_yes=lambda: result.append(1))
+        qtbot.addWidget(dlg)
+        # 找到「是」按钮并点击
+        buttons = dlg.findChildren(QtWidgets.QPushButton)
+        yes_btn = next(b for b in buttons if b.text() == "是")
+        yes_btn.click()
+        assert result == [1]
+
+    def test_msg_question_triggers_on_no(self, coordinator: DialogCoordinator, qtbot) -> None:
+        """msg_question 点「否」触发 on_no 回调。"""
+        result = []
+        dlg = coordinator.msg_question("确认", "是否继续？", on_no=lambda: result.append(1))
+        qtbot.addWidget(dlg)
+        buttons = dlg.findChildren(QtWidgets.QPushButton)
+        no_btn = next(b for b in buttons if b.text() == "否")
+        no_btn.click()
+        assert result == [1]
 
 
 class TestOnEditStart:
@@ -242,9 +269,16 @@ class TestConfirmResume:
     """confirm_resume：恢复计时确认。"""
 
     def test_opens_resume_dialog(self, coordinator: DialogCoordinator, qtbot) -> None:
-        """confirm_resume 打开 QMessageBox。"""
+        """confirm_resume 打开非模态确认对话框（是/否按钮）。"""
         coordinator.confirm_resume()
-        assert coordinator.busy is True
+        # msg_question 不走 self.open()，不设置 _busy，但会创建并显示对话框
+        # 验证：存在一个活跃的 QDialog（通过 QApplication.topLevelWidgets 查找）
+        top_dialogs = [
+            w
+            for w in QtWidgets.QApplication.topLevelWidgets()
+            if isinstance(w, QtWidgets.QDialog) and w.isVisible()
+        ]
+        assert len(top_dialogs) >= 1
         # 清理
-        if coordinator._pending is not None:
-            coordinator._pending.close()
+        for d in top_dialogs:
+            d.close()

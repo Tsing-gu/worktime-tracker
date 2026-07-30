@@ -78,17 +78,23 @@ class EditStartDialogUI(QtWidgets.QDialog):
         if time_str:
             self.input_edit.setText(time_str)
         else:
-            box = QtWidgets.QMessageBox(
-                QtWidgets.QMessageBox.Information,
-                "pmset",
-                "未找到今天的活动记录",
-                QtWidgets.QMessageBox.Ok,
-                self,
-            )
-            for btn in box.buttons():
-                btn.setAutoDefault(False)
-                btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-            box.show()
+            dlg = QtWidgets.QDialog(self)
+            dlg.setWindowTitle("pmset")
+            dlg.setMinimumWidth(320)
+            layout = QtWidgets.QVBoxLayout(dlg)
+            layout.setContentsMargins(24, 20, 24, 16)
+            layout.setSpacing(12)
+            label = QtWidgets.QLabel("未找到今天的活动记录")
+            label.setWordWrap(True)
+            layout.addWidget(label)
+            btn_layout = QtWidgets.QHBoxLayout()
+            btn_layout.addStretch()
+            ok_btn = make_dialog_button("确定", "primary", dlg.accept)
+            btn_layout.addWidget(ok_btn)
+            layout.addLayout(btn_layout)
+            dlg.show()
+            dlg.raise_()
+            dlg.activateWindow()
 
     def get_time_str(self) -> str:
         """返回用户输入的时间字符串。"""

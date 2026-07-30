@@ -46,25 +46,40 @@ class SettingsDialogUI(QtWidgets.QDialog):
 
     @staticmethod
     def _msg(
-        icon: QtWidgets.QMessageBox.Icon,
+        icon_name: str,
         parent: QtWidgets.QWidget,
         title: str,
         text: str,
     ) -> None:
-        """非模态 QMessageBox 提示。"""
-        box = QtWidgets.QMessageBox(icon, title, text, QtWidgets.QMessageBox.Ok, parent)
-        for btn in box.buttons():
-            btn.setAutoDefault(False)
-            btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        box.show()
+        """非模态自定义提示框（用 make_dialog_button，避免 QMessageBox 焦点链问题）。"""
+        dlg = QtWidgets.QDialog(parent)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(320)
+        layout = QtWidgets.QVBoxLayout(dlg)
+        layout.setContentsMargins(24, 20, 24, 16)
+        layout.setSpacing(12)
+
+        label = QtWidgets.QLabel(text)
+        label.setWordWrap(True)
+        layout.addWidget(label)
+
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        ok_btn = make_dialog_button("确定", "primary", dlg.accept)
+        btn_layout.addWidget(ok_btn)
+        layout.addLayout(btn_layout)
+
+        dlg.show()
+        dlg.raise_()
+        dlg.activateWindow()
 
     @staticmethod
     def _msg_info(parent: QtWidgets.QWidget, title: str, text: str) -> None:
-        SettingsDialogUI._msg(QtWidgets.QMessageBox.Information, parent, title, text)
+        SettingsDialogUI._msg("info", parent, title, text)
 
     @staticmethod
     def _msg_warn(parent: QtWidgets.QWidget, title: str, text: str) -> None:
-        SettingsDialogUI._msg(QtWidgets.QMessageBox.Warning, parent, title, text)
+        SettingsDialogUI._msg("warning", parent, title, text)
 
     def __init__(
         self,
