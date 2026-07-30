@@ -176,21 +176,30 @@ class SettingsDialogUI(QtWidgets.QDialog):
         bottom_bar.addWidget(self.check_update_btn)
         main_layout.addLayout(bottom_bar)
 
-        # ── 确认/取消按钮 ──
-        btn_box = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-        )
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.StrongFocus)
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setAutoDefault(False)
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.StrongFocus)
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setAutoDefault(False)
+        # ── 确认/取消按钮（用自定义 QPushButton 替代 QDialogButtonBox）──
+        # QDialogButtonBox 在 macOS 上点击非默认按钮后会把焦点切到默认按钮（OK），
+        # 导致"点取消后焦点跳到确定"的异常行为。改用自定义 QPushButton 彻底摆脱该焦点链。
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        ok_btn = QtWidgets.QPushButton("确定")
+        ok_btn.setObjectName("PrimaryBtn")
+        ok_btn.setFixedHeight(32)
+        ok_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+        ok_btn.setAutoDefault(False)
+        ok_btn.setDefault(False)
+        ok_btn.clicked.connect(self.accept)
+        cancel_btn = QtWidgets.QPushButton("取消")
+        cancel_btn.setObjectName("SecondaryBtn")
+        cancel_btn.setFixedHeight(32)
+        cancel_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+        cancel_btn.setAutoDefault(False)
+        cancel_btn.setDefault(False)
+        cancel_btn.clicked.connect(self.reject)
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(ok_btn)
         self.check_update_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.record_office_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        btn_box.accepted.connect(self.accept)
-        btn_box.rejected.connect(self.reject)
-        main_layout.addWidget(btn_box)
+        main_layout.addLayout(btn_layout)
 
     def get_values(self) -> dict:
         """

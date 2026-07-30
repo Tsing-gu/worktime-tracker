@@ -46,18 +46,26 @@ class UpdateConfirmDialogUI(QtWidgets.QDialog):
             desc.setWordWrap(True)
             layout.addWidget(desc)
 
-        btn_box = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Yes | QtWidgets.QDialogButtonBox.No
-        )
-        btn_box.button(QtWidgets.QDialogButtonBox.Yes).setText("立即更新")
-        btn_box.button(QtWidgets.QDialogButtonBox.Yes).setFocusPolicy(QtCore.Qt.StrongFocus)
-        btn_box.button(QtWidgets.QDialogButtonBox.Yes).setAutoDefault(False)
-        btn_box.button(QtWidgets.QDialogButtonBox.No).setText("稍后")
-        btn_box.button(QtWidgets.QDialogButtonBox.No).setFocusPolicy(QtCore.Qt.StrongFocus)
-        btn_box.button(QtWidgets.QDialogButtonBox.No).setAutoDefault(False)
-        btn_box.accepted.connect(self.accept)
-        btn_box.rejected.connect(self.reject)
-        layout.addWidget(btn_box)
+        # ── 立即更新/稍后按钮（自定义 QPushButton，避免 QDialogButtonBox 焦点链问题）──
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        later_btn = QtWidgets.QPushButton("稍后")
+        later_btn.setObjectName("SecondaryBtn")
+        later_btn.setFixedHeight(32)
+        later_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+        later_btn.setAutoDefault(False)
+        later_btn.setDefault(False)
+        later_btn.clicked.connect(self.reject)
+        update_btn = QtWidgets.QPushButton("立即更新")
+        update_btn.setObjectName("PrimaryBtn")
+        update_btn.setFixedHeight(32)
+        update_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+        update_btn.setAutoDefault(False)
+        update_btn.setDefault(False)
+        update_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(later_btn)
+        btn_layout.addWidget(update_btn)
+        layout.addLayout(btn_layout)
 
 
 class UpdateProgressDialogUI(QtWidgets.QDialog):

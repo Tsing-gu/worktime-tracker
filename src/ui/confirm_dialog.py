@@ -80,19 +80,26 @@ class ConfirmYesterdayDialogUI(QtWidgets.QDialog):
             warn.setObjectName("AnomalyWarn")
             layout.addWidget(warn)
 
-        # ── 确认/跳过按钮 ──
-        btn_box = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-        )
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确认")
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.StrongFocus)
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setAutoDefault(False)
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("跳过")
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.StrongFocus)
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setAutoDefault(False)
-        btn_box.accepted.connect(self.accept)
-        btn_box.rejected.connect(self.reject)
-        layout.addWidget(btn_box)
+        # ── 确认/跳过按钮（自定义 QPushButton，避免 QDialogButtonBox 焦点链问题）──
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        skip_btn = QtWidgets.QPushButton("跳过")
+        skip_btn.setObjectName("SecondaryBtn")
+        skip_btn.setFixedHeight(32)
+        skip_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+        skip_btn.setAutoDefault(False)
+        skip_btn.setDefault(False)
+        skip_btn.clicked.connect(self.reject)
+        ok_btn = QtWidgets.QPushButton("确认")
+        ok_btn.setObjectName("PrimaryBtn")
+        ok_btn.setFixedHeight(32)
+        ok_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+        ok_btn.setAutoDefault(False)
+        ok_btn.setDefault(False)
+        ok_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(skip_btn)
+        btn_layout.addWidget(ok_btn)
+        layout.addLayout(btn_layout)
 
     def get_end_time(self) -> datetime:
         """获取用户修改后的下班时间。"""

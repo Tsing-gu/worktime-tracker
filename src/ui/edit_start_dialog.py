@@ -48,18 +48,26 @@ class EditStartDialogUI(QtWidgets.QDialog):
         self._pmset_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         layout.addWidget(self._pmset_btn)
 
-        btn_box = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-        )
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.StrongFocus)
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setAutoDefault(False)
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.StrongFocus)
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setAutoDefault(False)
-        btn_box.accepted.connect(self.accept)
-        btn_box.rejected.connect(self.reject)
-        layout.addWidget(btn_box)
+        # ── 确定/取消按钮（自定义 QPushButton，避免 QDialogButtonBox 焦点链问题）──
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        cancel_btn = QtWidgets.QPushButton("取消")
+        cancel_btn.setObjectName("SecondaryBtn")
+        cancel_btn.setFixedHeight(32)
+        cancel_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+        cancel_btn.setAutoDefault(False)
+        cancel_btn.setDefault(False)
+        cancel_btn.clicked.connect(self.reject)
+        ok_btn = QtWidgets.QPushButton("确定")
+        ok_btn.setObjectName("PrimaryBtn")
+        ok_btn.setFixedHeight(32)
+        ok_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+        ok_btn.setAutoDefault(False)
+        ok_btn.setDefault(False)
+        ok_btn.clicked.connect(self.accept)
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(ok_btn)
+        layout.addLayout(btn_layout)
 
     def _on_fill_pmset(self) -> None:
         """从 pmset 读取上班时间，子线程执行避免阻塞 UI。"""

@@ -497,18 +497,26 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         edit.setPlaceholderText("HH:MM")
         edit.setFocusPolicy(QtCore.Qt.ClickFocus)
         layout.addWidget(edit)
-        btn_box = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-        )
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setText("确定")
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setFocusPolicy(QtCore.Qt.StrongFocus)
-        btn_box.button(QtWidgets.QDialogButtonBox.Ok).setAutoDefault(False)
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setText("取消")
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setFocusPolicy(QtCore.Qt.StrongFocus)
-        btn_box.button(QtWidgets.QDialogButtonBox.Cancel).setAutoDefault(False)
-        btn_box.accepted.connect(dialog.accept)
-        btn_box.rejected.connect(dialog.reject)
-        layout.addWidget(btn_box)
+        # ── 确定/取消按钮（自定义 QPushButton，避免 QDialogButtonBox 焦点链问题）──
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        cancel_btn = QtWidgets.QPushButton("取消")
+        cancel_btn.setObjectName("SecondaryBtn")
+        cancel_btn.setFixedHeight(32)
+        cancel_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+        cancel_btn.setAutoDefault(False)
+        cancel_btn.setDefault(False)
+        cancel_btn.clicked.connect(dialog.reject)
+        ok_btn = QtWidgets.QPushButton("确定")
+        ok_btn.setObjectName("PrimaryBtn")
+        ok_btn.setFixedHeight(32)
+        ok_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+        ok_btn.setAutoDefault(False)
+        ok_btn.setDefault(False)
+        ok_btn.clicked.connect(dialog.accept)
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(ok_btn)
+        layout.addLayout(btn_layout)
         self._pending_sub = dialog
 
         def on_finished(result_code: int) -> None:
