@@ -52,7 +52,8 @@ class DialogCoordinator(QtCore.QObject):
 
     # 跨 controller 通信信号
     refresh_requested = QtCore.Signal()
-    update_check_requested = QtCore.Signal()
+    update_check_requested = QtCore.Signal()  # 自动检查（次日确认后）
+    manual_check_update_requested = QtCore.Signal()  # 手动检查（设置弹窗触发）
     export_finished = QtCore.Signal(str, bool)
 
     def __init__(
@@ -104,6 +105,8 @@ class DialogCoordinator(QtCore.QObject):
 
         dialog.finished.connect(_on_done)
         dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
         return True
 
     # ─── 消息提示框 ────────────────────────────────────────
@@ -122,6 +125,8 @@ class DialogCoordinator(QtCore.QObject):
             btn.setAutoDefault(False)
             btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         box.show()
+        box.raise_()
+        box.activateWindow()
         return box
 
     def msg_information(self, title: str, text: str) -> QtWidgets.QMessageBox:
@@ -219,7 +224,11 @@ class DialogCoordinator(QtCore.QObject):
 
     def on_settings(self) -> None:
         """打开设置弹窗（非模态），确认后保存设置。"""
-        dialog = SettingsDialogUI(self._settings.get_settings_dict(), self._parent)
+        dialog = SettingsDialogUI(
+            self._settings.get_settings_dict(),
+            self._parent,
+            on_check_update=self.manual_check_update_requested.emit,
+        )
 
         def on_finished(result_code: int) -> None:
             if result_code == QtWidgets.QDialog.Accepted:

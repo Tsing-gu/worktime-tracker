@@ -12,6 +12,7 @@ import threading
 from PySide6 import QtCore, QtWidgets
 
 from src.services.tracking_service import TrackingService
+from src.ui.dialog_buttons import make_ok_cancel_buttons
 
 
 class EditStartDialogUI(QtWidgets.QDialog):
@@ -48,26 +49,8 @@ class EditStartDialogUI(QtWidgets.QDialog):
         self._pmset_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         layout.addWidget(self._pmset_btn)
 
-        # ── 确定/取消按钮（自定义 QPushButton，避免 QDialogButtonBox 焦点链问题）──
-        btn_layout = QtWidgets.QHBoxLayout()
-        btn_layout.addStretch()
-        cancel_btn = QtWidgets.QPushButton("取消")
-        cancel_btn.setObjectName("SecondaryBtn")
-        cancel_btn.setFixedHeight(32)
-        cancel_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        cancel_btn.setAutoDefault(False)
-        cancel_btn.setDefault(False)
-        cancel_btn.clicked.connect(self.reject)
-        ok_btn = QtWidgets.QPushButton("确定")
-        ok_btn.setObjectName("PrimaryBtn")
-        ok_btn.setFixedHeight(32)
-        ok_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        ok_btn.setAutoDefault(False)
-        ok_btn.setDefault(False)
-        ok_btn.clicked.connect(self.accept)
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(ok_btn)
-        layout.addLayout(btn_layout)
+        # ── 确定/取消按钮（封装函数，避免 QDialogButtonBox 焦点链问题）──
+        layout.addLayout(make_ok_cancel_buttons("确定", "取消", self.accept, self.reject))
 
     def _on_fill_pmset(self) -> None:
         """从 pmset 读取上班时间，子线程执行避免阻塞 UI。"""

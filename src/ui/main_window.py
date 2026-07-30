@@ -82,6 +82,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
         # DialogCoordinator → MainWindowUI / UpdateFlowController
         self.dialogs.refresh_requested.connect(self.refresh_ui)
         self.dialogs.update_check_requested.connect(self.update_flow.check_update_after_confirm)
+        self.dialogs.manual_check_update_requested.connect(self.update_flow.on_check_update)
 
         # TrayController → MainWindowUI / DialogCoordinator / UpdateFlowController
         self.tray.show_main_requested.connect(self.show_normal)

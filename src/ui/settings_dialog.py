@@ -15,6 +15,7 @@ settings_dialog - 设置弹窗
 """
 
 import threading
+from collections.abc import Callable
 
 from PySide6 import QtCore, QtWidgets
 
@@ -31,6 +32,7 @@ from src.config import (
     SETTING_WEEKLY_WORK_DAYS,
     SETTING_WORK_START_FLOOR,
 )
+from src.ui.dialog_buttons import make_ok_cancel_buttons
 from src.ui.theme import get_theme
 
 
@@ -64,17 +66,24 @@ class SettingsDialogUI(QtWidgets.QDialog):
     def _msg_warn(parent: QtWidgets.QWidget, title: str, text: str) -> None:
         SettingsDialogUI._msg(QtWidgets.QMessageBox.Warning, parent, title, text)
 
-    def __init__(self, settings: dict, parent: QtWidgets.QWidget | None = None) -> None:
+    def __init__(
+        self,
+        settings: dict,
+        parent: QtWidgets.QWidget | None = None,
+        on_check_update: Callable[[], None] | None = None,
+    ) -> None:
         """
         初始化设置弹窗，从 settings dict 读取当前值填充控件。
 
         Args:
-            settings: 当前设置字典 {key: value}
-            parent:   父窗口
+            settings:        当前设置字典 {key: value}
+            parent:          父窗口
+            on_check_update: 检查更新回调（由 DialogCoordinator 注入 UpdateFlowController）
         """
         super().__init__(parent)
         self.setWindowTitle("设置")
         self.setMinimumWidth(420)
+        self._on_check_update_cb = on_check_update
 
         main_layout = QtWidgets.QVBoxLayout(self)
         main_layout.setSpacing(12)
@@ -176,30 +185,10 @@ class SettingsDialogUI(QtWidgets.QDialog):
         bottom_bar.addWidget(self.check_update_btn)
         main_layout.addLayout(bottom_bar)
 
-        # ── 确认/取消按钮（用自定义 QPushButton 替代 QDialogButtonBox）──
-        # QDialogButtonBox 在 macOS 上点击非默认按钮后会把焦点切到默认按钮（OK），
-        # 导致"点取消后焦点跳到确定"的异常行为。改用自定义 QPushButton 彻底摆脱该焦点链。
-        btn_layout = QtWidgets.QHBoxLayout()
-        btn_layout.addStretch()
-        ok_btn = QtWidgets.QPushButton("确定")
-        ok_btn.setObjectName("PrimaryBtn")
-        ok_btn.setFixedHeight(32)
-        ok_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        ok_btn.setAutoDefault(False)
-        ok_btn.setDefault(False)
-        ok_btn.clicked.connect(self.accept)
-        cancel_btn = QtWidgets.QPushButton("取消")
-        cancel_btn.setObjectName("SecondaryBtn")
-        cancel_btn.setFixedHeight(32)
-        cancel_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        cancel_btn.setAutoDefault(False)
-        cancel_btn.setDefault(False)
-        cancel_btn.clicked.connect(self.reject)
-        btn_layout.addWidget(cancel_btn)
-        btn_layout.addWidget(ok_btn)
+        # ── 确认/取消按钮（封装函数，避免 QDialogButtonBox 焦点链问题）──
+        main_layout.addLayout(make_ok_cancel_buttons("确定", "取消", self.accept, self.reject))
         self.check_update_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.record_office_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        main_layout.addLayout(btn_layout)
 
     def get_values(self) -> dict:
         """
@@ -231,11 +220,10 @@ class SettingsDialogUI(QtWidgets.QDialog):
             self.only_office.setCheckState(QtCore.Qt.Unchecked)
 
     def _on_check_update(self) -> None:
-        """立即检查更新，调用父窗口（MainWindow）的更新逻辑。"""
-        parent = self.parent()
-        if parent and hasattr(parent, "on_check_update"):
+        """立即检查更新，通过注入的回调通知 UpdateFlowController。"""
+        if self._on_check_update_cb is not None:
             self.close()
-            parent.on_check_update()
+            self._on_check_update_cb()
         else:
             self._msg_info(self, "检查更新", "请在主界面托盘菜单中检查更新")
 
