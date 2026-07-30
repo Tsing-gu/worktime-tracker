@@ -374,3 +374,293 @@ class TestBackfillOffTime:
         record = tracking_service._worktime_repo.get(prev_date)
         assert record is not None
         assert record["end_time"] is None
+
+
+class TestGetRecentPmsetSummary:
+    """get_recent_pmset_summary：读取近 N 天 pmset 推断 + DB 对比。"""
+
+    def test_returns_descending_by_date(
+        self, tracking_service: TrackingService, monkeypatch
+    ) -> None:
+        """返回列表按日期降序（今天在最前）。"""
+
+        # mock get_active_periods_from_pmset 返回固定值
+        def fake_pmset(work_date, floor):
+            return (datetime(2026, 7, 15, 9, 0), datetime(2026, 7, 15, 18, 0))
+
+        monkeypatch.setattr(
+            "src.services.tracking_service.get_active_periods_from_pmset", fake_pmset
+        )
+
+        summaries = tracking_service.get_recent_pmset_summary(days=7)
+
+        assert len(summaries) == 7
+        # 降序：今天 2026-07-15 在最前
+        assert summaries[0].work_date == date(2026, 7, 15)
+        assert summaries[-1].work_date == date(2026, 7, 9)
+        # 推断时间正确
+        assert summaries[0].first_active == datetime(2026, 7, 15, 9, 0)
+        assert summaries[0].last_active == datetime(2026, 7, 15, 18, 0)
+
+    def test_reflects_db_state(self, tracking_service: TrackingService, monkeypatch) -> None:
+        """DB 已有记录时 has_start_record / has_end_record / source 正确反映。"""
+        monkeypatch.setattr(
+            "src.services.tracking_service.get_active_periods_from_pmset",
+            lambda wd, floor: (None, None),
+        )
+        # 插一条已有上班记录（auto 来源）
+        today = date(2026, 7, 15)
+        tracking_service._worktime_repo.upsert(
+            today,
+            start_time=datetime(2026, 7, 15, 9, 30, 0),
+            source="auto",
+            required_hours=8.0,
+        )
+
+        summaries = tracking_service.get_recent_pmset_summary(days=3)
+
+        # 今天有上班记录
+        today_summary = summaries[0]
+        assert today_summary.work_date == today
+        assert today_summary.has_start_record is True
+        assert today_summary.has_end_record is False
+        assert today_summary.source == "auto"
+        # 前两天无记录
+        assert summaries[1].has_start_record is False
+        assert summaries[2].has_start_record is False
+
+    def test_days_param_controls_range(
+        self, tracking_service: TrackingService, monkeypatch
+    ) -> None:
+        """days 参数控制读取天数。"""
+        monkeypatch.setattr(
+            "src.services.tracking_service.get_active_periods_from_pmset",
+            lambda wd, floor: (None, None),
+        )
+        summaries = tracking_service.get_recent_pmset_summary(days=3)
+        assert len(summaries) == 3
+
+    def test_reflects_leave_record(self, tracking_service: TrackingService, monkeypatch) -> None:
+        """DB 有请假记录时 leave_type 正确反映。"""
+        monkeypatch.setattr(
+            "src.services.tracking_service.get_active_periods_from_pmset",
+            lambda wd, floor: (None, None),
+        )
+        today = date(2026, 7, 15)
+        tracking_service._worktime_repo.upsert(today, leave_type="annual")
+
+        summaries = tracking_service.get_recent_pmset_summary(days=1)
+        assert summaries[0].leave_type == "annual"
+
+
+class TestApplyPmsetStartTime:
+    """apply_pmset_start_time：应用 pmset 推断上班时间到 DB。"""
+
+    def test_applies_when_no_record(self, tracking_service: TrackingService) -> None:
+        """无任何记录 → 应用成功。"""
+        target = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 15, 0)
+
+        result = tracking_service.apply_pmset_start_time(target, start_time)
+
+        assert result is True
+        record = tracking_service._worktime_repo.get(target)
+        assert record is not None
+        assert record["start_time"] == start_time.strftime(DT_FORMAT)
+        assert record["source"] == "auto"
+        assert record["required_hours"] == 8.0
+
+    def test_skips_when_manual_record_exists(self, tracking_service: TrackingService) -> None:
+        """已有手动记录 → 不覆盖。"""
+        target = date(2026, 7, 14)
+        existing_start = datetime(2026, 7, 14, 10, 0, 0)
+        tracking_service._worktime_repo.upsert(
+            target, start_time=existing_start, source="manual", required_hours=8.0
+        )
+
+        result = tracking_service.apply_pmset_start_time(target, datetime(2026, 7, 14, 9, 15, 0))
+
+        assert result is False
+        record = tracking_service._worktime_repo.get(target)
+        assert record is not None
+        assert record["start_time"] == existing_start.strftime(DT_FORMAT)
+        assert record["source"] == "manual"
+
+    def test_skips_when_leave_record_exists(self, tracking_service: TrackingService) -> None:
+        """已有请假记录 → 不覆盖。"""
+        target = date(2026, 7, 14)
+        tracking_service._worktime_repo.upsert(target, leave_type="sick")
+
+        result = tracking_service.apply_pmset_start_time(target, datetime(2026, 7, 14, 9, 15, 0))
+
+        assert result is False
+        record = tracking_service._worktime_repo.get(target)
+        assert record is not None
+        assert record.get("leave_type") == "sick"
+        assert record.get("start_time") is None
+
+    def test_skips_when_auto_start_already_exists(self, tracking_service: TrackingService) -> None:
+        """已有 auto 来源的上班记录 → 不覆盖（避免重复写入）。"""
+        target = date(2026, 7, 14)
+        existing_start = datetime(2026, 7, 14, 9, 0, 0)
+        tracking_service._worktime_repo.upsert(
+            target, start_time=existing_start, source="auto", required_hours=8.0
+        )
+
+        result = tracking_service.apply_pmset_start_time(target, datetime(2026, 7, 14, 9, 15, 0))
+
+        assert result is False
+        record = tracking_service._worktime_repo.get(target)
+        assert record is not None
+        assert record["start_time"] == existing_start.strftime(DT_FORMAT)
+
+
+class TestApplyPmsetEndTime:
+    """apply_pmset_end_time：应用 pmset 推断下班时间到 DB。"""
+
+    def test_applies_when_start_exists_no_end(self, tracking_service: TrackingService) -> None:
+        """有上班记录、无下班 → 应用成功。
+
+        推断下班 18:30 < off_time_floor 19:00 → 对齐到 19:00，
+        total_hours = 19:00 - 09:00 = 10h。
+        """
+        target = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        tracking_service._worktime_repo.upsert(
+            target, start_time=start_time, source="auto", required_hours=8.0
+        )
+
+        end_time = datetime(2026, 7, 14, 18, 30, 0)
+        result = tracking_service.apply_pmset_end_time(target, end_time)
+
+        assert result is True
+        record = tracking_service._worktime_repo.get(target)
+        assert record is not None
+        # 18:30 对齐到 19:00
+        assert record["end_time"] == datetime(2026, 7, 14, 19, 0, 0).strftime(DT_FORMAT)
+        assert record["total_hours"] == 10.0
+        assert record["source"] == "auto"
+        assert record["is_confirmed"] == 0
+
+    def test_applies_late_end_time_no_align(self, tracking_service: TrackingService) -> None:
+        """推断下班晚于 off_time_floor → 不对齐，原样写入。
+
+        推断下班 22:00 > 19:00 → 保持 22:00，total_hours = 13h。
+        """
+        target = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        tracking_service._worktime_repo.upsert(
+            target, start_time=start_time, source="auto", required_hours=8.0
+        )
+
+        result = tracking_service.apply_pmset_end_time(target, datetime(2026, 7, 14, 22, 0, 0))
+
+        assert result is True
+        record = tracking_service._worktime_repo.get(target)
+        assert record is not None
+        assert record["end_time"] == datetime(2026, 7, 14, 22, 0, 0).strftime(DT_FORMAT)
+        assert record["total_hours"] == 13.0
+
+    def test_aligns_to_off_time_floor(self, tracking_service: TrackingService) -> None:
+        """推断下班早于 off_time_floor → 对齐到 floor（默认 19:00）。"""
+        target = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        tracking_service._worktime_repo.upsert(
+            target, start_time=start_time, source="auto", required_hours=8.0
+        )
+
+        # 18:00 早于 19:00 → 对齐到 19:00
+        result = tracking_service.apply_pmset_end_time(target, datetime(2026, 7, 14, 18, 0, 0))
+
+        assert result is True
+        record = tracking_service._worktime_repo.get(target)
+        assert record is not None
+        assert record["end_time"] == datetime(2026, 7, 14, 19, 0, 0).strftime(DT_FORMAT)
+        assert record["total_hours"] == 10.0
+
+    def test_skips_when_no_start_record(self, tracking_service: TrackingService) -> None:
+        """无上班记录 → 不覆盖（下班必须有上班才能算工时）。"""
+        target = date(2026, 7, 14)
+
+        result = tracking_service.apply_pmset_end_time(target, datetime(2026, 7, 14, 18, 0, 0))
+
+        assert result is False
+        record = tracking_service._worktime_repo.get(target)
+        # 无上班记录时不应创建新记录
+        assert record is None or record.get("end_time") is None
+
+    def test_skips_when_manual_record_exists(self, tracking_service: TrackingService) -> None:
+        """已有手动记录 → 不覆盖。"""
+        target = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        tracking_service._worktime_repo.upsert(
+            target, start_time=start_time, source="manual", required_hours=8.0
+        )
+
+        result = tracking_service.apply_pmset_end_time(target, datetime(2026, 7, 14, 18, 0, 0))
+
+        assert result is False
+        record = tracking_service._worktime_repo.get(target)
+        assert record is not None
+        assert record.get("end_time") is None
+        assert record["source"] == "manual"
+
+    def test_skips_when_end_already_exists(self, tracking_service: TrackingService) -> None:
+        """已有下班记录 → 不覆盖。"""
+        target = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        existing_end = datetime(2026, 7, 14, 17, 0, 0)
+        tracking_service._worktime_repo.upsert(
+            target,
+            start_time=start_time,
+            end_time=existing_end,
+            total_hours=8.0,
+            source="auto",
+            required_hours=8.0,
+        )
+
+        result = tracking_service.apply_pmset_end_time(target, datetime(2026, 7, 14, 18, 0, 0))
+
+        assert result is False
+        record = tracking_service._worktime_repo.get(target)
+        assert record is not None
+        assert record["end_time"] == existing_end.strftime(DT_FORMAT)
+
+    def test_skips_when_leave_record_exists(self, tracking_service: TrackingService) -> None:
+        """已有请假记录 → 不覆盖。"""
+        target = date(2026, 7, 14)
+        tracking_service._worktime_repo.upsert(
+            target,
+            start_time=datetime(2026, 7, 14, 9, 0, 0),
+            source="auto",
+            required_hours=8.0,
+            leave_type="annual",
+        )
+
+        result = tracking_service.apply_pmset_end_time(target, datetime(2026, 7, 14, 18, 0, 0))
+
+        assert result is False
+        record = tracking_service._worktime_repo.get(target)
+        assert record is not None
+        assert record.get("end_time") is None
+
+    def test_handles_cross_day_end_time(self, tracking_service: TrackingService) -> None:
+        """推断下班时间早于上班时间 → 自动跨天（+1 天）。"""
+        target = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 22, 0, 0)
+        tracking_service._worktime_repo.upsert(
+            target, start_time=start_time, source="auto", required_hours=8.0
+        )
+
+        # 02:00 早于 22:00 → 跨天到次日 02:00，对齐到 19:00 不生效（02:00 > 19:00?）
+        # 实际：02:00 次日 → minute_total = 2*60 = 120 < 19*60=1140 → 对齐到 19:00
+        # 但对齐后是次日 19:00，total_hours = 21h
+        result = tracking_service.apply_pmset_end_time(target, datetime(2026, 7, 14, 2, 0, 0))
+
+        assert result is True
+        record = tracking_service._worktime_repo.get(target)
+        assert record is not None
+        # 跨天后 end_time 应是次日 19:00
+        assert record["end_time"] == datetime(2026, 7, 15, 19, 0, 0).strftime(DT_FORMAT)
+        # 22:00 → 次日 19:00 = 21h
+        assert record["total_hours"] == 21.0

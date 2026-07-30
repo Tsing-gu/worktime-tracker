@@ -22,6 +22,7 @@ from src.config import LEAVE_TYPES, SETTING_DAILY_REQUIRED_HOURS
 from src.services.factory import ServiceFactory
 from src.ui.dialog_buttons import make_dialog_button
 from src.ui.leave_dialog import LeaveDialogUI
+from src.ui.pmset_summary_dialog import PmsetSummaryDialogUI
 from src.ui.theme import get_theme
 from src.utils.date_utils import compute_work_date
 
@@ -123,6 +124,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         self.setMinimumSize(820, 660)
         if factory is None:
             raise ValueError("CalendarHistoryDialogUI 必须传入 factory 实例")
+        self._factory = factory
         self._record = factory.record_service
         self._settings = factory.settings_service
         self._export = factory.export_service
@@ -154,6 +156,9 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         today_btn = make_dialog_button("本月", "secondary", self.go_today)
         ctrl.addWidget(today_btn)
         ctrl.addStretch()
+
+        pmset_btn = make_dialog_button("工时回溯", "secondary", self._on_open_pmset_summary)
+        ctrl.addWidget(pmset_btn)
         layout.addLayout(ctrl)
 
         layout.addStretch()  # 顶部弹性空间
@@ -372,6 +377,25 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
                 col = 0
                 row += 1
             d += timedelta(days=1)
+
+    # ─── pmset 推断弹窗 ────────────────────────────────────
+
+    def _on_open_pmset_summary(self) -> None:
+        """打开「近 7 天工时回溯」弹窗（模态级联）。
+
+        模态显示确保子弹窗始终在父弹窗前面，关闭后刷新日历
+        （可能应用了新的上下班记录）。
+        """
+        dialog = PmsetSummaryDialogUI(self, factory=self._factory)
+        self._pending_sub = dialog
+
+        def on_finished(_: int) -> None:
+            self._pending_sub = None
+            self.load_data()  # 刷新日历，因为可能应用了新记录
+
+        dialog.finished.connect(on_finished)
+        # 模态 exec：阻塞父弹窗，确保子弹窗在前
+        dialog.exec()
 
     # ─── 右键菜单 ──────────────────────────────────────────
 

@@ -19,17 +19,19 @@ tracking_service - 轮询追踪服务
 from __future__ import annotations
 
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from src.core.tracker import PollResult, WorkTrackerCore
 from src.data.activity_repo import ActivityRepository
 from src.data.database import DT_FORMAT
+from src.data.models import PmsetDailySummary
 from src.data.worktime_repo import DailyWorktimeRepository
 from src.services.holiday_service import HolidayService
 from src.services.record_service import RecordService
 from src.services.settings_service import SettingsService
 from src.utils.date_utils import compute_work_date
 from src.utils.system import (
+    get_active_periods_from_pmset,
     get_first_active_from_pmset,
     get_hid_idle_seconds,
     get_network_status,
@@ -296,3 +298,141 @@ class TrackingService:
             return new_start
         except Exception as e:
             raise ValueError(f"请输入 HH:MM 格式，如 09:30\n\n错误：{e}") from e
+
+    # ─── pmset 近 7 天推断 ────────────────────────────────
+
+    def get_recent_pmset_summary(self, days: int = 7) -> list[PmsetDailySummary]:
+        """读取近 N 天的 pmset 推断上下班时间，并与 DB 已有记录对比。
+
+        从今天往前推 N 天，对每个日期调用 get_active_periods_from_pmset，
+        并查 daily_worktime 表标记是否已有上班/下班记录。
+
+        注意：pmset 仅能推断用户使用电脑的情况，无法区分公司/家里，
+        在家用电脑时下班时间可能偏晚。
+
+        Args:
+            days: 天数（默认 7）
+
+        Returns:
+            PmsetDailySummary 列表，按日期降序排列（今天在最前）
+        """
+        settings = self._settings.get()
+        today = compute_work_date(datetime.now())
+        summaries: list[PmsetDailySummary] = []
+        for offset in range(days):
+            target = today - timedelta(days=offset)
+            first_active, last_active = get_active_periods_from_pmset(
+                target, settings.work_start_floor
+            )
+            daily = self._worktime_repo.get(target)
+            has_start = bool(daily and daily.get("start_time"))
+            has_end = bool(daily and daily.get("end_time"))
+            source = daily.get("source") if daily else None
+            leave_type = daily.get("leave_type") if daily else None
+            summaries.append(
+                PmsetDailySummary(
+                    work_date=target,
+                    first_active=first_active,
+                    last_active=last_active,
+                    has_start_record=has_start,
+                    has_end_record=has_end,
+                    source=source,
+                    leave_type=leave_type,
+                )
+            )
+        return summaries
+
+    def apply_pmset_start_time(self, work_date: date, start_time: datetime) -> bool:
+        """应用 pmset 推断的上班时间到 DB。
+
+        保护策略（不覆盖的场景）：
+            - 已有手动记录（source='manual'）→ 不覆盖
+            - 已有请假记录（leave_type 非空）→ 不覆盖
+            - 已有上班记录（start_time 非空）→ 不覆盖
+        否则 → upsert(start_time, source='auto', required_hours)
+
+        Args:
+            work_date:   目标工作日
+            start_time:  pmset 推断的上班时间
+
+        Returns:
+            True=已应用, False=因保护策略被跳过
+        """
+        daily = self._worktime_repo.get(work_date)
+        if daily:
+            if daily.get("source") == "manual":
+                logger.info("pmset 推断上班时间跳过：%s 已有手动记录", work_date)
+                return False
+            if daily.get("leave_type"):
+                logger.info("pmset 推断上班时间跳过：%s 已请假", work_date)
+                return False
+            if daily.get("start_time"):
+                logger.info("pmset 推断上班时间跳过：%s 已有上班记录", work_date)
+                return False
+
+        settings = self._settings.get()
+        self._worktime_repo.upsert(
+            work_date,
+            start_time=start_time,
+            source="auto",
+            required_hours=settings.daily_required_hours,
+        )
+        logger.info("pmset 推断上班时间已应用：%s %s", work_date, start_time)
+        return True
+
+    def apply_pmset_end_time(self, work_date: date, end_time: datetime) -> bool:
+        """应用 pmset 推断的下班时间到 DB。
+
+        保护策略（不覆盖的场景）：
+            - 已有手动记录（source='manual'）→ 不覆盖
+            - 已有请假记录（leave_type 非空）→ 不覆盖
+            - 已有下班记录（end_time 非空）→ 不覆盖
+            - 无上班记录（start_time 为空）→ 不覆盖（下班必须有上班才能算工时）
+        否则 → upsert(end_time, total_hours, source='auto', is_confirmed=0)
+
+        Args:
+            work_date: 目标工作日
+            end_time:  pmset 推断的下班时间
+
+        Returns:
+            True=已应用, False=因保护策略被跳过
+        """
+        daily = self._worktime_repo.get(work_date)
+        if not daily or not daily.get("start_time"):
+            logger.info("pmset 推断下班时间跳过：%s 无上班记录", work_date)
+            return False
+        if daily.get("source") == "manual":
+            logger.info("pmset 推断下班时间跳过：%s 已有手动记录", work_date)
+            return False
+        if daily.get("leave_type"):
+            logger.info("pmset 推断下班时间跳过：%s 已请假", work_date)
+            return False
+        if daily.get("end_time"):
+            logger.info("pmset 推断下班时间跳过：%s 已有下班记录", work_date)
+            return False
+
+        start_time = datetime.strptime(daily["start_time"], DT_FORMAT)
+        if end_time < start_time:
+            end_time += timedelta(days=1)
+
+        # 对齐到下班时间下限
+        settings = self._settings.get()
+        off_floor_h, off_floor_m = map(int, settings.off_time_floor.split(":"))
+        off_total_min = end_time.hour * 60 + end_time.minute
+        floor_total_min = off_floor_h * 60 + off_floor_m
+        if off_total_min < floor_total_min:
+            end_time = end_time.replace(
+                hour=off_floor_h, minute=off_floor_m, second=0, microsecond=0
+            )
+
+        total_hours = (end_time - start_time).total_seconds() / 3600.0
+        self._worktime_repo.upsert(
+            work_date,
+            end_time=end_time,
+            total_hours=total_hours,
+            required_hours=settings.daily_required_hours,
+            is_confirmed=0,
+            source="auto",
+        )
+        logger.info("pmset 推断下班时间已应用：%s %s", work_date, end_time)
+        return True

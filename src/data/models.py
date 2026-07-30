@@ -210,6 +210,33 @@ class Setting:
     value: str
 
 
+@dataclass
+class PmsetDailySummary:
+    """从 pmset 日志推断的单日上下班时间汇总。
+
+    用于在 UI 展示「近 7 天 pmset 推断」弹窗，对比 pmset 推断结果与 DB 已有记录，
+    供用户选择性应用。仅推断用户使用电脑的情况，无法区分公司/家里，
+    在家用电脑时下班时间可能偏晚，用户需手动修改。
+
+    Attributes:
+        work_date:         工作日日期
+        first_active:      首次 UserIsActive 事件时间（推断上班）
+        last_active:       末次 UserIsActive 事件时间（推断下班）
+        has_start_record:  是否已有上班记录
+        has_end_record:    是否已有下班记录
+        source:            已有记录来源（'auto'/'manual'/None）
+        leave_type:        已有请假类型（有请假则不补录）
+    """
+
+    work_date: date
+    first_active: datetime | None = None
+    last_active: datetime | None = None
+    has_start_record: bool = False
+    has_end_record: bool = False
+    source: str | None = None
+    leave_type: str | None = None
+
+
 # ─── dict ↔ dataclass 转换函数（Repository 层内部使用）──────────
 
 

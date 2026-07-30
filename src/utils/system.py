@@ -148,11 +148,62 @@ def get_network_status(office_domain: str = "") -> dict:
 # ─── pmset 电源日志 ───────────────────────────────────────────
 
 
+def get_active_periods_from_pmset(
+    work_date: date, work_start_floor: str = "06:00"
+) -> tuple[datetime | None, datetime | None]:
+    """从 `pmset -g log` 日志中读取指定工作日的首次/末次 UserIsActive 事件时间。
+
+    用于回溯任意一天的上下班时间推断：
+        - first_active: 首次 UserIsActive（过滤早于 work_start_floor 的事件）
+        - last_active:  末次 UserIsActive（无时间下限，凌晨跨天归前一天）
+
+    与 `get_first_active_from_pmset` 共享日志解析逻辑，一次遍历同时返回两端。
+
+    Args:
+        work_date:        目标工作日
+        work_start_floor: 上班检测起始时间 "HH:MM"（过滤早于此的首次活动）
+
+    Returns:
+        (first_active, last_active)，任一为 None 表示未找到对应方向的事件
+    """
+    try:
+        result = subprocess.run(["pmset", "-g", "log"], capture_output=True, text=True, timeout=5)
+    except Exception:
+        return None, None
+
+    # 匹配 pmset 日志中的 UserIsActive 断言创建/激活行
+    pattern = re.compile(
+        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \+\d{4}\s+Assertions\s+PID \d+\(.*?\) (?:Created|TurnedOn) UserIsActive"
+    )
+
+    floor_h, floor_m = map(int, work_start_floor.split(":"))
+
+    first_active: datetime | None = None
+    last_active: datetime | None = None
+    for line in result.stdout.split("\n"):
+        m = pattern.match(line)
+        if not m:
+            continue
+        ts = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
+        # 验证归属工作日是否匹配（跨天 6:00 窗口规则）
+        if compute_work_date(ts) != work_date:
+            continue
+        # 更新末次活动（无时间下限）
+        if last_active is None or ts > last_active:
+            last_active = ts
+        # 更新首次活动（过滤早于上班检测起始时间的事件）
+        if ts.hour < floor_h or (ts.hour == floor_h and ts.minute < floor_m):
+            continue
+        if first_active is None or ts < first_active:
+            first_active = ts
+
+    return first_active, last_active
+
+
 def get_first_active_from_pmset(
     work_date: date, work_start_floor: str = "06:00"
 ) -> datetime | None:
-    """
-    从 `pmset -g log` 日志中回溯当天上班检测起始时间后首次 UserIsActive 事件。
+    """从 `pmset -g log` 日志中回溯当天上班检测起始时间后首次 UserIsActive 事件。
 
     用于程序启动时校验/回填上班时间，比 HIDIdleTime 更准确。
 
@@ -163,38 +214,7 @@ def get_first_active_from_pmset(
     Returns:
         首次 UserIsActive 事件时间，或 None
     """
-    try:
-        result = subprocess.run(["pmset", "-g", "log"], capture_output=True, text=True, timeout=5)
-    except Exception:
-        return None
-
-    date_str = work_date.isoformat()
-    # 匹配 pmset 日志中的 UserIsActive 断言创建行
-    pattern = re.compile(
-        r"^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \+\d{4}\s+Assertions\s+PID \d+\(.*?\) (?:Created|TurnedOn) UserIsActive"
-    )
-
-    floor_h, floor_m = map(int, work_start_floor.split(":"))
-
-    first_active = None
-    for line in result.stdout.split("\n"):
-        if date_str not in line:
-            continue
-        m = pattern.match(line)
-        if m:
-            ts = datetime.strptime(m.group(1), "%Y-%m-%d %H:%M:%S")
-            # 验证归属工作日是否匹配
-            work_dt = compute_work_date(ts)
-            if work_dt != work_date:
-                continue
-            # 过滤早于上班检测起始时间的事件
-            if ts.hour < floor_h or (ts.hour == floor_h and ts.minute < floor_m):
-                continue
-            # 取最早的一条
-            if first_active is None or ts < first_active:
-                first_active = ts
-
-    return first_active
+    return get_active_periods_from_pmset(work_date, work_start_floor)[0]
 
 
 # ─── macOS 系统通知 ───────────────────────────────────────────
