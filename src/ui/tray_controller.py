@@ -127,14 +127,21 @@ class TrayController(QtCore.QObject):
         左键单击 → 显示工时预览弹窗（非阻塞）。
         右键单击 → 显示功能菜单。
 
+        切换时显式关闭另一个菜单，避免同时存在多个菜单/时长卡。
+
         Args:
             reason: 激活原因枚举
         """
         if reason == QtWidgets.QSystemTrayIcon.Trigger:
-            # 左键 → 时长卡
+            # 左键 → 时长卡，先关闭可能存在的右键菜单
+            if self._tray_menu.isVisible():
+                self._tray_menu.hide()
             self._show_popup()
         elif reason == QtWidgets.QSystemTrayIcon.Context:
-            # 右键 → 功能菜单
+            # 右键 → 功能菜单，先关闭可能存在的左键时长卡
+            if self._tray_popup_menu is not None:
+                self._tray_popup_menu.deleteLater()
+                self._tray_popup_menu = None
             self._tray_menu.popup(QtGui.QCursor.pos())
 
     def _show_popup(self) -> None:

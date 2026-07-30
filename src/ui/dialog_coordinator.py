@@ -87,6 +87,10 @@ class DialogCoordinator(QtCore.QObject):
     ) -> bool:
         """统一打开非模态弹窗，自动管理 _busy 与 _pending。
 
+        使用默认 QDialog 行为：有 parent 时 macOS 让弹窗保持在父窗口前，
+        配合 raise_() + activateWindow() 实现置前。有标准标题栏关闭按钮，
+        无滑出动画、无残影。
+
         Args:
             dialog:      要打开的 QDialog
             on_finished:  弹窗关闭后的回调，参数为 result_code

@@ -13,12 +13,13 @@ dialog_buttons - 对话框按钮封装
     所有按钮统一配置:
     - setAutoDefault(False) + setDefault(False): 彻底关闭默认按钮行为
     - setFocusPolicy(StrongFocus): 可接收焦点，对话框 show() 后 Qt 自动给首个按钮焦点
+    - setStyle(Fusion): 单按钮用 Fusion 绘制，避免 QMacStyle hover/pressed 原生动画问题
     - setObjectName: PrimaryBtn / SecondaryBtn / DangerBtn（QSS 主题样式）
 
 API:
     make_dialog_button(text, role, slot) -> QPushButton
 
-版本: 0.16.3
+版本: 0.16.4
 """
 
 from __future__ import annotations
@@ -61,6 +62,9 @@ def make_dialog_button(
     """
     btn = QtWidgets.QPushButton(text)
     btn.setObjectName(_ROLE_TO_OBJECT_NAME.get(role, "PrimaryBtn"))
+    # 单独应用 Fusion style：避免 QMacStyle 按钮原生绘制导致
+    # hover 不跟手、~200ms soft press 动画延迟、pressed 无视觉反馈
+    btn.setStyle(QtWidgets.QStyleFactory.create("Fusion"))
     if fixed_size is not None:
         btn.setFixedSize(*fixed_size)
     else:
