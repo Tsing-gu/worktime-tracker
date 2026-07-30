@@ -12,7 +12,7 @@ from datetime import date
 from PySide6 import QtCore, QtWidgets
 
 from src.config import LEAVE_TYPES
-from src.ui.dialog_buttons import make_ok_cancel_buttons
+from src.ui.dialog_buttons import make_dialog_button
 
 
 class LeaveDialogUI(QtWidgets.QDialog):
@@ -62,8 +62,14 @@ class LeaveDialogUI(QtWidgets.QDialog):
             self.type_combo.addItem(self.type_map[t])
         layout.addWidget(self.type_combo)
 
-        # ── 确认/取消按钮（封装函数，避免 QDialogButtonBox 焦点链问题）──
-        layout.addLayout(make_ok_cancel_buttons("确认请假", "取消", self.accept, self.reject))
+        # ── 确认/取消按钮（手动创建两个实例，避免 QDialogButtonBox 焦点链问题）──
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        cancel_btn = make_dialog_button("取消", "secondary", self.reject)
+        ok_btn = make_dialog_button("确认请假", "primary", self.accept)
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(ok_btn)
+        layout.addLayout(btn_layout)
 
     def get_date(self) -> date:
         """

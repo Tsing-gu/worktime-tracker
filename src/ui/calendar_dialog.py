@@ -20,7 +20,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from src.config import LEAVE_TYPES, SETTING_DAILY_REQUIRED_HOURS
 from src.services.factory import ServiceFactory
-from src.ui.dialog_buttons import make_ok_cancel_buttons
+from src.ui.dialog_buttons import make_dialog_button
 from src.ui.leave_dialog import LeaveDialogUI
 from src.ui.theme import get_theme
 from src.utils.date_utils import compute_work_date
@@ -140,10 +140,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         ctrl = QtWidgets.QHBoxLayout()
         ctrl.setSpacing(8)
 
-        prev_btn = QtWidgets.QPushButton("◀")
-        prev_btn.setFixedSize(44, 32)
-        prev_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        prev_btn.clicked.connect(self.prev_month)
+        prev_btn = make_dialog_button("◀", "secondary", self.prev_month, fixed_size=(44, 32))
         ctrl.addWidget(prev_btn)
 
         self.month_label = QtWidgets.QLabel("")
@@ -151,16 +148,10 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         self.month_label.setAlignment(QtCore.Qt.AlignCenter)
         ctrl.addWidget(self.month_label)
 
-        next_btn = QtWidgets.QPushButton("▶")
-        next_btn.setFixedSize(44, 32)
-        next_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        next_btn.clicked.connect(self.next_month)
+        next_btn = make_dialog_button("▶", "secondary", self.next_month, fixed_size=(44, 32))
         ctrl.addWidget(next_btn)
 
-        today_btn = QtWidgets.QPushButton("本月")
-        today_btn.setFixedHeight(32)
-        today_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        today_btn.clicked.connect(self.go_today)
+        today_btn = make_dialog_button("本月", "secondary", self.go_today)
         ctrl.addWidget(today_btn)
         ctrl.addStretch()
         layout.addLayout(ctrl)
@@ -498,8 +489,14 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         edit.setPlaceholderText("HH:MM")
         edit.setFocusPolicy(QtCore.Qt.ClickFocus)
         layout.addWidget(edit)
-        # ── 确定/取消按钮（封装函数，避免 QDialogButtonBox 焦点链问题）──
-        layout.addLayout(make_ok_cancel_buttons("确定", "取消", dialog.accept, dialog.reject))
+        # ── 确定/取消按钮（手动创建两个实例，避免 QDialogButtonBox 焦点链问题）──
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        cancel_btn = make_dialog_button("取消", "secondary", dialog.reject)
+        ok_btn = make_dialog_button("确定", "primary", dialog.accept)
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(ok_btn)
+        layout.addLayout(btn_layout)
         self._pending_sub = dialog
 
         def on_finished(result_code: int) -> None:

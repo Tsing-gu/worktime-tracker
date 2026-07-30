@@ -13,7 +13,7 @@ from collections.abc import Callable
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from src.ui.dialog_buttons import make_ok_cancel_buttons
+from src.ui.dialog_buttons import make_dialog_button
 from src.utils.version import get_version
 
 
@@ -47,8 +47,14 @@ class UpdateConfirmDialogUI(QtWidgets.QDialog):
             desc.setWordWrap(True)
             layout.addWidget(desc)
 
-        # ── 立即更新/稍后按钮（封装函数，避免 QDialogButtonBox 焦点链问题）──
-        layout.addLayout(make_ok_cancel_buttons("立即更新", "稍后", self.accept, self.reject))
+        # ── 立即更新/稍后按钮（手动创建两个实例，避免 QDialogButtonBox 焦点链问题）──
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        later_btn = make_dialog_button("稍后", "secondary", self.reject)
+        update_btn = make_dialog_button("立即更新", "primary", self.accept)
+        btn_layout.addWidget(later_btn)
+        btn_layout.addWidget(update_btn)
+        layout.addLayout(btn_layout)
 
 
 class UpdateProgressDialogUI(QtWidgets.QDialog):
@@ -79,9 +85,7 @@ class UpdateProgressDialogUI(QtWidgets.QDialog):
         self._detail_label.setObjectName("DlDetail")
         layout.addWidget(self._detail_label)
 
-        self._cancel_btn = QtWidgets.QPushButton("取消下载")
-        self._cancel_btn.setObjectName("DangerBtn")
-        self._cancel_btn.clicked.connect(self._on_cancel)
+        self._cancel_btn = make_dialog_button("取消下载", "danger", self._on_cancel)
         layout.addWidget(self._cancel_btn)
 
         self._cancelled = False

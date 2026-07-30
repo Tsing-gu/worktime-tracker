@@ -12,7 +12,7 @@ from datetime import date, datetime
 
 from PySide6 import QtCore, QtWidgets
 
-from src.ui.dialog_buttons import make_ok_cancel_buttons
+from src.ui.dialog_buttons import make_dialog_button
 
 
 class ConfirmYesterdayDialogUI(QtWidgets.QDialog):
@@ -82,8 +82,14 @@ class ConfirmYesterdayDialogUI(QtWidgets.QDialog):
             warn.setObjectName("AnomalyWarn")
             layout.addWidget(warn)
 
-        # ── 确认/跳过按钮（封装函数，避免 QDialogButtonBox 焦点链问题）──
-        layout.addLayout(make_ok_cancel_buttons("确认", "跳过", self.accept, self.reject))
+        # ── 确认/跳过按钮（手动创建两个实例，避免 QDialogButtonBox 焦点链问题）──
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        skip_btn = make_dialog_button("跳过", "secondary", self.reject)
+        ok_btn = make_dialog_button("确认", "primary", self.accept)
+        btn_layout.addWidget(skip_btn)
+        btn_layout.addWidget(ok_btn)
+        layout.addLayout(btn_layout)
 
     def get_end_time(self) -> datetime:
         """获取用户修改后的下班时间。"""

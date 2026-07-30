@@ -32,7 +32,7 @@ from src.config import (
     SETTING_WEEKLY_WORK_DAYS,
     SETTING_WORK_START_FLOOR,
 )
-from src.ui.dialog_buttons import make_ok_cancel_buttons
+from src.ui.dialog_buttons import make_dialog_button
 from src.ui.theme import get_theme
 
 
@@ -165,8 +165,9 @@ class SettingsDialogUI(QtWidgets.QDialog):
         office_layout = QtWidgets.QHBoxLayout()
         self.office_domain_label = QtWidgets.QLabel(self._office_domain or "未设置")
         self.office_domain_label.setObjectName("OfficeDomain")
-        self.record_office_btn = QtWidgets.QPushButton("记录当前网络为办公网络")
-        self.record_office_btn.clicked.connect(self._on_record_office)
+        self.record_office_btn = make_dialog_button(
+            "记录当前网络为办公网络", "secondary", self._on_record_office
+        )
         office_layout.addWidget(self.office_domain_label)
         office_layout.addWidget(self.record_office_btn)
         other_form.addRow("办公网络", office_layout)
@@ -180,15 +181,20 @@ class SettingsDialogUI(QtWidgets.QDialog):
         version_label.setObjectName("VersionLabel")
         bottom_bar.addWidget(version_label)
         bottom_bar.addStretch()
-        self.check_update_btn = QtWidgets.QPushButton("立即检查更新")
-        self.check_update_btn.clicked.connect(self._on_check_update)
+        self.check_update_btn = make_dialog_button(
+            "立即检查更新", "secondary", self._on_check_update
+        )
         bottom_bar.addWidget(self.check_update_btn)
         main_layout.addLayout(bottom_bar)
 
-        # ── 确认/取消按钮（封装函数，避免 QDialogButtonBox 焦点链问题）──
-        main_layout.addLayout(make_ok_cancel_buttons("确定", "取消", self.accept, self.reject))
-        self.check_update_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        self.record_office_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
+        # ── 确认/取消按钮（手动创建两个实例，避免 QDialogButtonBox 焦点链问题）──
+        btn_layout = QtWidgets.QHBoxLayout()
+        btn_layout.addStretch()
+        cancel_btn = make_dialog_button("取消", "secondary", self.reject)
+        ok_btn = make_dialog_button("确定", "primary", self.accept)
+        btn_layout.addWidget(cancel_btn)
+        btn_layout.addWidget(ok_btn)
+        main_layout.addLayout(btn_layout)
 
     def get_values(self) -> dict:
         """

@@ -17,6 +17,7 @@ from datetime import datetime
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from src.services.factory import ServiceFactory
+from src.ui.dialog_buttons import make_dialog_button
 from src.ui.dialog_coordinator import DialogCoordinator
 from src.ui.poll_controller import PollController
 from src.ui.tray_controller import TrayController
@@ -122,19 +123,13 @@ class MainWindowUI(QtWidgets.QMainWindow):
         btn_row = QtWidgets.QHBoxLayout()
         btn_row.setSpacing(12)
 
-        self.edit_start_btn = QtWidgets.QPushButton("修改上班")
-        self.edit_start_btn.setObjectName("SecondaryBtn")
-        self.edit_start_btn.setFixedHeight(32)
-        self.edit_start_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        self.edit_start_btn.clicked.connect(self.dialogs.on_edit_start)
+        self.edit_start_btn = make_dialog_button(
+            "修改上班", "secondary", self.dialogs.on_edit_start
+        )
         btn_row.addWidget(self.edit_start_btn)
         btn_row.addStretch()
 
-        self.off_btn = QtWidgets.QPushButton("手动下班")
-        self.off_btn.setObjectName("PrimaryBtn")
-        self.off_btn.setFixedHeight(32)
-        self.off_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        self.off_btn.clicked.connect(self.dialogs.on_manual_off)
+        self.off_btn = make_dialog_button("手动下班", "primary", self.dialogs.on_manual_off)
         btn_row.addWidget(self.off_btn)
         status_layout.addLayout(btn_row)
 
@@ -218,10 +213,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
             ("请假", self.dialogs.on_leave),
             ("导出", self.dialogs.on_export),
         ]:
-            btn = QtWidgets.QPushButton(label)
-            btn.setFixedHeight(32)
-            btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-            btn.clicked.connect(handler)
+            btn = make_dialog_button(label, "secondary", handler)
             btn_box.addWidget(btn)
         layout.addLayout(btn_box)
 

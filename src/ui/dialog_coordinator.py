@@ -33,6 +33,7 @@ from src.services.stats_service import StatsService
 from src.services.tracking_service import TrackingService
 from src.ui.calendar_dialog import CalendarHistoryDialogUI
 from src.ui.confirm_dialog import ConfirmYesterdayDialogUI
+from src.ui.dialog_buttons import make_dialog_button
 from src.ui.edit_start_dialog import EditStartDialogUI
 from src.ui.leave_dialog import LeaveDialogUI
 from src.ui.settings_dialog import SettingsDialogUI
@@ -281,18 +282,12 @@ class DialogCoordinator(QtCore.QObject):
 
         btn_row = QtWidgets.QHBoxLayout()
         btn_row.setSpacing(8)
-        cancel_btn = QtWidgets.QPushButton("取消")
-        cancel_btn.setObjectName("SecondaryBtn")
-        cancel_btn.setFixedSize(96, 32)
-        cancel_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        cancel_btn.clicked.connect(dlg.reject)
+        cancel_btn = make_dialog_button("取消", "secondary", dlg.reject, fixed_size=(96, 32))
         btn_row.addWidget(cancel_btn)
         btn_row.addStretch()
-        export_btn = QtWidgets.QPushButton("导出 Excel")
-        export_btn.setObjectName("PrimaryBtn")
-        export_btn.setFixedSize(96, 32)
-        export_btn.setFocusPolicy(QtCore.Qt.StrongFocus)
-        export_btn.clicked.connect(lambda: dlg.done(1))
+        export_btn = make_dialog_button(
+            "导出 Excel", "primary", lambda: dlg.done(1), fixed_size=(96, 32)
+        )
         btn_row.addWidget(export_btn)
         dlg_layout.addLayout(btn_row)
 
