@@ -23,6 +23,7 @@ from src.ui.poll_controller import PollController
 from src.ui.tray_controller import TrayController
 from src.ui.update_flow_controller import UpdateFlowController
 from src.utils.date_utils import compute_work_date
+from src.utils.managed_threads import wait_for_managed_threads
 from src.utils.paths import resource_path
 
 
@@ -385,4 +386,5 @@ class MainWindowUI(QtWidgets.QMainWindow):
         """退出程序：停止定时器 + 隐藏托盘 + 退出应用。"""
         self.poll.stop()
         self.tray.hide()
+        wait_for_managed_threads(timeout=5.0)
         QtWidgets.QApplication.quit()

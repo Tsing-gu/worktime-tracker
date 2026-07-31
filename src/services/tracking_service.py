@@ -19,6 +19,7 @@ tracking_service - 轮询追踪服务
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import date, datetime, timedelta
 
 from src.core.tracker import PollResult, WorkTrackerCore
@@ -305,7 +306,11 @@ class TrackingService:
 
     # ─── pmset 近 7 天推断 ────────────────────────────────
 
-    def get_recent_pmset_summary(self, days: int = 7) -> list[PmsetDailySummary]:
+    def get_recent_pmset_summary(
+        self,
+        days: int = 7,
+        cancel_event: threading.Event | None = None,
+    ) -> list[PmsetDailySummary]:
         """读取近 N 天的 pmset 推断上下班时间，并与 DB 已有记录对比。
 
         从今天往前推 N 天，对每个日期调用 get_active_periods_from_pmset，
@@ -324,10 +329,17 @@ class TrackingService:
         today = compute_work_date(datetime.now())
         summaries: list[PmsetDailySummary] = []
         for offset in range(days):
+            if cancel_event is not None and cancel_event.is_set():
+                break
             target = today - timedelta(days=offset)
-            first_active, last_active = get_active_periods_from_pmset(
-                target, settings.work_start_floor
-            )
+            if cancel_event is None:
+                first_active, last_active = get_active_periods_from_pmset(
+                    target, settings.work_start_floor
+                )
+            else:
+                first_active, last_active = get_active_periods_from_pmset(
+                    target, settings.work_start_floor, cancel_event
+                )
             daily = self._worktime_repo.get(target)
             has_start = bool(daily and daily.get("start_time"))
             has_end = bool(daily and daily.get("end_time"))

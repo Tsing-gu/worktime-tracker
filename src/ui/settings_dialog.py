@@ -14,7 +14,6 @@ settings_dialog - 设置弹窗
 版本: 0.4.2
 """
 
-import threading
 from collections.abc import Callable
 
 from PySide6 import QtCore, QtWidgets
@@ -34,6 +33,7 @@ from src.config import (
 )
 from src.ui.dialog_buttons import make_dialog_button
 from src.ui.theme import get_theme
+from src.utils.managed_threads import start_managed_thread
 
 
 class SettingsDialogUI(QtWidgets.QDialog):
@@ -267,7 +267,7 @@ class SettingsDialogUI(QtWidgets.QDialog):
                 QtCore.Q_ARG(str, domain),
             )
 
-        threading.Thread(target=worker, daemon=True).start()
+        start_managed_thread(worker, name="record-office-network")
 
     @QtCore.Slot(str)
     def _on_record_office_result(self, domain: str) -> None:

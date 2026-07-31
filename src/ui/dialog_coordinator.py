@@ -20,7 +20,6 @@ dialog_coordinator - 弹窗协调器
 
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable
 from datetime import date, datetime, timedelta
 
@@ -38,6 +37,7 @@ from src.ui.edit_start_dialog import EditStartDialogUI
 from src.ui.leave_dialog import LeaveDialogUI
 from src.ui.settings_dialog import SettingsDialogUI
 from src.utils.date_utils import compute_work_date
+from src.utils.managed_threads import start_managed_thread
 
 
 class DialogCoordinator(QtCore.QObject):
@@ -331,7 +331,7 @@ class DialogCoordinator(QtCore.QObject):
                 except Exception as e:
                     self.export_finished.emit(str(e), False)
 
-            threading.Thread(target=worker, daemon=True).start()
+            start_managed_thread(worker, name="excel-export")
 
         self.open(dlg, on_finished)
 

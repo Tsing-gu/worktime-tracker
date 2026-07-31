@@ -14,6 +14,7 @@ test_system - 系统调用封装单测
 from __future__ import annotations
 
 import subprocess
+import threading
 from datetime import date, datetime, timedelta
 from unittest.mock import MagicMock
 
@@ -144,6 +145,23 @@ class TestGetActivePeriodsFromPmset:
         first, last = get_active_periods_from_pmset(date(2026, 7, 30), "06:00")
         assert first is None
         assert last is None
+
+    def test_cancel_event_terminates_pmset_process(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """取消事件触发时终止正在运行的 pmset 子进程。"""
+        process = MagicMock()
+        process.poll.return_value = None
+        process.communicate.return_value = ("", "")
+        process.terminate.return_value = None
+        monkeypatch.setattr("src.utils.system.subprocess.Popen", lambda *a, **k: process)
+
+        cancel_event = threading.Event()
+        cancel_event.set()
+        result = get_active_periods_from_pmset(
+            date(2026, 7, 30), "06:00", cancel_event=cancel_event
+        )
+
+        assert result == (None, None)
+        process.terminate.assert_called_once()
 
     def test_filters_other_dates_events(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """其他日期的事件不计入目标工作日。"""

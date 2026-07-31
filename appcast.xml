@@ -12,6 +12,20 @@
       4. length 为 DMG 文件字节数（stat -f%z 工时计算器.dmg）
     -->
     <item>
+      <title>版本 0.17.4</title>
+      <pubDate>Fri, 31 Jul 2026 15:38:09 +0800</pubDate>
+      <sparkle:version>48</sparkle:version>
+      <sparkle:shortVersionString>0.17.4</sparkle:shortVersionString>
+      <description><![CDATA[<ul>
+<li>统一管理后台任务的启动与退出，关闭应用时等待线程结束，避免 Python 意外退出</li>
+<li>关闭工时回溯窗口时可终止 pmset 子进程，不再向已销毁窗口发送更新</li>
+</ul>]]></description>
+      <enclosure
+        url="https://github.com/Tsing-gu/worktime-tracker/releases/download/v0.17.4/WorkTimeTracker.dmg"
+        length="46505178"
+        sparkle:edSignature=""/>
+    </item>
+    <item>
       <title>版本 0.17.3</title>
       <pubDate>Fri, 31 Jul 2026 15:17:03 +0800</pubDate>
       <sparkle:version>47</sparkle:version>

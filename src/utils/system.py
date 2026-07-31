@@ -13,6 +13,7 @@ system - macOS 系统调用封装
 import logging
 import re
 import subprocess
+import threading
 from datetime import date, datetime, timedelta
 
 from src.config import ACTIVE_THRESHOLD_SECONDS, AWAY_THRESHOLD_SECONDS
@@ -184,7 +185,9 @@ def _get_network_interfaces() -> list[str]:
 
 
 def get_active_periods_from_pmset(
-    work_date: date, work_start_floor: str = "06:00"
+    work_date: date,
+    work_start_floor: str = "06:00",
+    cancel_event: threading.Event | None = None,
 ) -> tuple[datetime | None, datetime | None]:
     """从 `pmset -g log` 日志中读取指定工作日的首次/末次 UserIsActive 事件时间。
 
@@ -202,7 +205,15 @@ def get_active_periods_from_pmset(
         (first_active, last_active)，任一为 None 表示未找到对应方向的事件
     """
     try:
-        result = subprocess.run(["pmset", "-g", "log"], capture_output=True, text=True, timeout=5)
+        if cancel_event is None:
+            result = subprocess.run(
+                ["pmset", "-g", "log"], capture_output=True, text=True, timeout=5
+            )
+            output = result.stdout
+        else:
+            output = _read_pmset_log_with_cancel(cancel_event)
+            if output is None:
+                return None, None
     except Exception:
         return None, None
 
@@ -215,7 +226,7 @@ def get_active_periods_from_pmset(
 
     first_active: datetime | None = None
     last_active: datetime | None = None
-    for line in result.stdout.split("\n"):
+    for line in output.split("\n"):
         m = pattern.match(line)
         if not m:
             continue
@@ -233,6 +244,35 @@ def get_active_periods_from_pmset(
             first_active = ts
 
     return first_active, last_active
+
+
+def _read_pmset_log_with_cancel(cancel_event: threading.Event) -> str | None:
+    """读取 pmset 日志，支持在窗口关闭时终止子进程。"""
+    process = subprocess.Popen(
+        ["pmset", "-g", "log"],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        while True:
+            if cancel_event.is_set():
+                process.terminate()
+                try:
+                    process.communicate(timeout=1)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.communicate()
+                return None
+            try:
+                stdout, _ = process.communicate(timeout=0.2)
+                return stdout
+            except subprocess.TimeoutExpired:
+                continue
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.communicate()
 
 
 def get_first_active_from_pmset(

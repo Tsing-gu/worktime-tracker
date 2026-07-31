@@ -14,7 +14,6 @@ update_flow_controller - 更新流程控制器
 from __future__ import annotations
 
 import logging
-import threading
 
 from PySide6 import QtCore, QtWidgets
 
@@ -22,6 +21,7 @@ from src.services.factory import ServiceFactory
 from src.services.update_service import UpdateService
 from src.ui.dialog_coordinator import DialogCoordinator
 from src.ui.update_dialog import UpdateConfirmDialogUI, UpdateProgressDialogUI
+from src.utils.managed_threads import start_managed_thread
 
 logger = logging.getLogger(__name__)
 
@@ -68,7 +68,7 @@ class UpdateFlowController(QtCore.QObject):
                 logger.warning("[Update] 检查失败：%s", e)
                 self.update_check_finished.emit(("manual", "error"))
 
-        threading.Thread(target=worker, daemon=True).start()
+        start_managed_thread(worker, name="manual-update-check")
 
     def check_update_after_confirm(self) -> None:
         """次日确认完成后自动检查更新（每天一次），子线程执行不阻塞 UI。
@@ -91,7 +91,7 @@ class UpdateFlowController(QtCore.QObject):
                 logger.warning("[Update] 自动检查失败：%s", e)
                 self.update_check_finished.emit(("auto", "error"))
 
-        threading.Thread(target=worker, daemon=True).start()
+        start_managed_thread(worker, name="auto-update-check")
 
     @QtCore.Slot(object)
     def _on_update_check_finished(self, payload: tuple) -> None:
@@ -193,5 +193,4 @@ class UpdateFlowController(QtCore.QObject):
                 QtWidgets.QApplication.instance(), "quit", QtCore.Qt.QueuedConnection
             )
 
-        t = threading.Thread(target=worker, daemon=True)
-        t.start()
+        start_managed_thread(worker, name="update-download")

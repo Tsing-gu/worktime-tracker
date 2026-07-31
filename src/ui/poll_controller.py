@@ -18,7 +18,6 @@ poll_controller - 轮询控制器
 from __future__ import annotations
 
 import logging
-import threading
 from collections.abc import Callable
 
 from PySide6 import QtCore
@@ -31,6 +30,7 @@ from src.services.record_service import RecordService
 from src.services.settings_service import SettingsService
 from src.services.stats_service import StatsService
 from src.services.tracking_service import TrackingService
+from src.utils.managed_threads import start_managed_thread
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ class PollController(QtCore.QObject):
                 logger.exception("初始化失败")
                 self.holiday_loaded.emit()
 
-        threading.Thread(target=worker, daemon=True).start()
+        start_managed_thread(worker, name="service-init")
 
     @QtCore.Slot()
     def on_holiday_loaded(self) -> None:
@@ -115,7 +115,7 @@ class PollController(QtCore.QObject):
                 logger.warning("[Poll] 轮询失败：%s", e)
                 self.poll_finished.emit(None)
 
-        threading.Thread(target=worker, daemon=True).start()
+        start_managed_thread(worker, name="poll")
 
     @QtCore.Slot(object)
     def _on_poll_finished(self, result: PollResult | None) -> None:
@@ -127,21 +127,24 @@ class PollController(QtCore.QObject):
         # ── 下班通知（子线程发送 osascript，不阻塞主线程）──
         if result.event == "off" and result.off_time is not None:
             if self._get_setting_bool(SETTING_NOTIFY_ON_OFF, True):
-                threading.Thread(
-                    target=notification_service.notify_off_work,
-                    args=(result.off_time.strftime("%H:%M"), result.worked_hours),
-                    daemon=True,
-                ).start()
+                off_time = result.off_time
+                start_managed_thread(
+                    lambda: notification_service.notify_off_work(
+                        off_time.strftime("%H:%M"), result.worked_hours
+                    ),
+                    name="off-work-notification",
+                )
         # ── 达标通知 ──
         elif result.event == "target_reached":
             if self._get_setting_bool(SETTING_NOTIFY_ON_TARGET, True):
                 status = self._stats.get_today_status()
                 required = status.required_hours
-                threading.Thread(
-                    target=notification_service.notify_target_reached,
-                    args=(result.worked_hours, required),
-                    daemon=True,
-                ).start()
+                start_managed_thread(
+                    lambda: notification_service.notify_target_reached(
+                        result.worked_hours, required
+                    ),
+                    name="target-notification",
+                )
         # ── 下班后回来 → 弹窗确认恢复 ──
         elif result.event == "back" and not self._is_busy():
             self.resume_requested.emit()

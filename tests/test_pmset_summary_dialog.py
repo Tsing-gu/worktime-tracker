@@ -15,6 +15,7 @@ monkeypatch mock tracking_service 避免真实 pmset 调用。
 
 from __future__ import annotations
 
+import threading
 from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -39,7 +40,7 @@ def factory(tmp_db: Path, sample_holidays, monkeypatch) -> ServiceFactory:
     monkeypatch.setattr(
         f.tracking_service,
         "get_recent_pmset_summary",
-        lambda days=7: [],
+        lambda days=7, **kwargs: [],
     )
     return f
 
@@ -176,6 +177,30 @@ class TestFormatExistingStatus:
         assert "无记录" in result
         dlg.close()
 
+    def test_close_cancels_and_waits_for_worker(self, qtbot, factory, monkeypatch) -> None:
+        """关闭窗口时取消并等待正在运行的回溯线程。"""
+        started = threading.Event()
+
+        def blocking_summary(days=7, cancel_event=None):
+            started.set()
+            assert cancel_event is not None
+            cancel_event.wait(timeout=2)
+            return []
+
+        monkeypatch.setattr(
+            factory.tracking_service,
+            "get_recent_pmset_summary",
+            blocking_summary,
+        )
+        dlg = PmsetSummaryDialogUI(parent=None, factory=factory)
+        qtbot.addWidget(dlg)
+        qtbot.waitUntil(started.is_set, timeout=1000)
+
+        dlg.close()
+
+        assert dlg._cancel_event.is_set()
+        assert not dlg._workers
+
 
 class TestConfigureApplyButton:
     """_configure_apply_button：按钮启用/禁用逻辑。"""
@@ -183,7 +208,11 @@ class TestConfigureApplyButton:
     @pytest.fixture
     def dialog(self, qtbot, factory, monkeypatch) -> PmsetSummaryDialogUI:
         """构造对话框，mock get_recent_pmset_summary 避免子线程阻塞。"""
-        monkeypatch.setattr(factory.tracking_service, "get_recent_pmset_summary", lambda days=7: [])
+        monkeypatch.setattr(
+            factory.tracking_service,
+            "get_recent_pmset_summary",
+            lambda days=7, **kwargs: [],
+        )
         dlg = PmsetSummaryDialogUI(parent=None, factory=factory)
         qtbot.addWidget(dlg)
         return dlg
@@ -304,7 +333,7 @@ class TestRenderTable:
         monkeypatch.setattr(
             factory.tracking_service,
             "get_recent_pmset_summary",
-            lambda days=7: mock_summaries,
+            lambda days=7, **kwargs: mock_summaries,
         )
         dlg = PmsetSummaryDialogUI(parent=None, factory=factory)
         qtbot.addWidget(dlg)
@@ -331,7 +360,7 @@ class TestRenderTable:
         monkeypatch.setattr(
             factory.tracking_service,
             "get_recent_pmset_summary",
-            lambda days=7: [],
+            lambda days=7, **kwargs: [],
         )
         dlg = PmsetSummaryDialogUI(parent=None, factory=factory)
         qtbot.addWidget(dlg)
@@ -357,7 +386,7 @@ class TestApplyActions:
         monkeypatch.setattr(
             factory.tracking_service,
             "get_recent_pmset_summary",
-            lambda days=7: mock_summaries,
+            lambda days=7, **kwargs: mock_summaries,
         )
         monkeypatch.setattr(
             factory.tracking_service,
@@ -397,7 +426,7 @@ class TestApplyActions:
         monkeypatch.setattr(
             factory.tracking_service,
             "get_recent_pmset_summary",
-            lambda days=7: mock_summaries,
+            lambda days=7, **kwargs: mock_summaries,
         )
         monkeypatch.setattr(
             factory.tracking_service,

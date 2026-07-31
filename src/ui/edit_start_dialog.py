@@ -7,12 +7,11 @@ edit_start_dialog - 修改上班时间弹窗
 版本: 0.13.0
 """
 
-import threading
-
 from PySide6 import QtCore, QtWidgets
 
 from src.services.tracking_service import TrackingService
 from src.ui.dialog_buttons import make_dialog_button
+from src.utils.managed_threads import start_managed_thread
 
 
 class EditStartDialogUI(QtWidgets.QDialog):
@@ -68,7 +67,7 @@ class EditStartDialogUI(QtWidgets.QDialog):
                 self, "_on_pmset_result", QtCore.Qt.QueuedConnection, QtCore.Q_ARG(str, time_str)
             )
 
-        threading.Thread(target=worker, daemon=True).start()
+        start_managed_thread(worker, name="pmset-start-time")
 
     @QtCore.Slot(str)
     def _on_pmset_result(self, time_str: str) -> None:

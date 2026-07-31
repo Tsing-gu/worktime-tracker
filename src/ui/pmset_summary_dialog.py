@@ -17,15 +17,17 @@ from __future__ import annotations
 
 import logging
 import threading
+from collections.abc import Callable
 from functools import partial
 
-from PySide6 import QtCore, QtWidgets
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from src.data.models import PmsetDailySummary
 from src.services.factory import ServiceFactory
 from src.services.tracking_service import TrackingService
 from src.ui.dialog_buttons import make_dialog_button
 from src.utils.date_utils import WEEKDAY_NAMES
+from src.utils.managed_threads import start_managed_thread
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +62,10 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
             raise ValueError("PmsetSummaryDialogUI 必须传入 factory 实例")
         self._tracking: TrackingService = factory.tracking_service
         self._pending_msg: QtWidgets.QDialog | None = None  # 当前非模态子弹窗引用，防止 GC
+        self._closing = False
+        self._cancel_event = threading.Event()
+        self._worker_lock = threading.Lock()
+        self._workers: set[threading.Thread] = set()
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(24, 20, 24, 16)
@@ -134,7 +140,7 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
 
     def _load_async(self) -> None:
         """子线程读取 pmset 推断 + DB 状态，避免阻塞 UI。"""
-        if self._loading:
+        if self._loading or self._closing:
             return
         self._loading = True
         self.loading_label.setText("加载中...")
@@ -143,20 +149,36 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
 
         def worker() -> None:
             try:
-                summaries = self._tracking.get_recent_pmset_summary(days=7)
+                summaries = self._tracking.get_recent_pmset_summary(
+                    days=7, cancel_event=self._cancel_event
+                )
             except Exception as e:
                 logger.exception("pmset 推断读取失败：%s", e)
                 summaries = []
+            if self._cancel_event.is_set() or self._closing:
+                return
             try:
                 self._summaries_loaded.emit(summaries)
             except RuntimeError:
                 # dialog 已被销毁（测试或快速关闭场景），忽略
                 pass
 
-        threading.Thread(target=worker, daemon=True).start()
+        self._start_worker(worker)
+
+    def _start_worker(self, target: Callable[[], None]) -> None:
+        """启动并登记线程，避免窗口关闭后留下不可控的后台任务。"""
+
+        def run() -> None:
+            target()
+
+        thread = start_managed_thread(run, name="pmset-summary")
+        with self._worker_lock:
+            self._workers.add(thread)
 
     def _on_loaded(self, summaries: object) -> None:
         """子线程读取完成后在主线程渲染表格。"""
+        if self._closing:
+            return
         self._loading = False
         if isinstance(summaries, list):
             self._summaries = [s for s in summaries if isinstance(s, PmsetDailySummary)]
@@ -307,6 +329,9 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
 
     def _on_refresh(self) -> None:
         """刷新按钮：重新读 pmset 推断 + DB 状态。"""
+        if self._closing:
+            return
+        self._cancel_event.clear()
         self._load_async()
 
     def _on_apply_start(self, row: int) -> None:
@@ -320,13 +345,17 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
         work_date = s.work_date
 
         def worker() -> None:
+            if self._cancel_event.is_set():
+                return
             applied = self._tracking.apply_pmset_start_time(work_date, first_active)
+            if self._cancel_event.is_set() or self._closing:
+                return
             try:
                 self._apply_done.emit(applied, "上班", work_date.isoformat())
             except RuntimeError:
                 pass
 
-        threading.Thread(target=worker, daemon=True).start()
+        self._start_worker(worker)
 
     def _on_apply_end(self, row: int) -> None:
         """应用下班按钮：把 pmset 推断下班时间写入 DB。"""
@@ -339,13 +368,17 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
         work_date = s.work_date
 
         def worker() -> None:
+            if self._cancel_event.is_set():
+                return
             applied = self._tracking.apply_pmset_end_time(work_date, last_active)
+            if self._cancel_event.is_set() or self._closing:
+                return
             try:
                 self._apply_done.emit(applied, "下班", work_date.isoformat())
             except RuntimeError:
                 pass
 
-        threading.Thread(target=worker, daemon=True).start()
+        self._start_worker(worker)
 
     def _on_apply_done(self, applied: bool, kind: str, work_date_str: str) -> None:
         """应用完成后刷新表格（不重新读 pmset，只查 DB）。"""
@@ -363,6 +396,8 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
             return
 
         def worker() -> None:
+            if self._cancel_event.is_set() or self._closing:
+                return
             # 重新查 DB 更新 has_start_record / has_end_record / source / leave_type
             updated: list[PmsetDailySummary] = []
             for s in self._summaries:
@@ -377,13 +412,19 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
                     leave_type=daily.get("leave_type") if daily else None,
                 )
                 updated.append(new_s)
+            if self._cancel_event.is_set() or self._closing:
+                return
             try:
                 self._db_state_refreshed.emit(updated)
             except RuntimeError:
                 pass
 
+        self._start_worker(worker)
+
     def _on_db_state_refreshed(self, updated: object) -> None:
         """DB 状态刷新完成后重渲染表格。"""
+        if self._closing:
+            return
         if isinstance(updated, list):
             self._summaries = [s for s in updated if isinstance(s, PmsetDailySummary)]
         else:
@@ -421,3 +462,15 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
 
         dlg.finished.connect(on_finished)
         dlg.exec()
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        """关闭前取消并等待本窗口启动的后台任务结束。"""
+        self._closing = True
+        self._cancel_event.set()
+        with self._worker_lock:
+            workers = list(self._workers)
+        for worker in workers:
+            worker.join(timeout=2)
+        with self._worker_lock:
+            self._workers.clear()
+        super().closeEvent(event)
