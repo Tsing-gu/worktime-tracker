@@ -39,3 +39,15 @@ def test_today_status_card_emits_actions(qtbot) -> None:
 
     assert edit_calls == [True]
     assert off_calls == [True]
+
+
+def test_update_progress_dialog_cancel_state_is_thread_safe(qtbot) -> None:
+    from src.ui.update_dialog import UpdateProgressDialogUI
+
+    dialog = UpdateProgressDialogUI()
+    qtbot.addWidget(dialog)
+    assert not dialog.is_cancelled()
+
+    dialog._cancelled.set()
+
+    assert dialog.is_cancelled()

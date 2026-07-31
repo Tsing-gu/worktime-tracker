@@ -67,6 +67,7 @@ class PollController(QtCore.QObject):
         self._factory = factory
         self._is_busy = is_busy
         self._initialized = False
+        self._polling = False
 
         self.poll_finished.connect(self._on_poll_finished)
 
@@ -104,8 +105,9 @@ class PollController(QtCore.QObject):
         在子线程中执行 poll_and_record（含 ioreg/ipconfig/osascript 等阻塞 I/O），
         结果通过 poll_finished 信号回主线程处理，主线程永不阻塞。
         """
-        if not self._initialized or self._is_busy():
+        if not self._initialized or self._is_busy() or self._polling:
             return
+        self._polling = True
 
         def worker() -> None:
             try:
@@ -120,6 +122,7 @@ class PollController(QtCore.QObject):
     @QtCore.Slot(object)
     def _on_poll_finished(self, result: PollResult | None) -> None:
         """轮询完成后在主线程处理结果：通知/弹窗/refresh_ui。"""
+        self._polling = False
         if result is None:
             self.refresh_requested.emit()
             return

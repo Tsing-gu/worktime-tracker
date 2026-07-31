@@ -9,6 +9,7 @@ update_dialog - 更新确认与下载进度弹窗
 版本: 0.5.3
 """
 
+import threading
 from collections.abc import Callable
 
 from PySide6 import QtCore, QtGui, QtWidgets
@@ -88,12 +89,12 @@ class UpdateProgressDialogUI(QtWidgets.QDialog):
         self._cancel_btn = make_dialog_button("取消下载", "danger", self._on_cancel)
         layout.addWidget(self._cancel_btn)
 
-        self._cancelled = False
+        self._cancelled = threading.Event()
         self._cancel_callback = None
 
     def _on_cancel(self) -> None:
         """用户点击取消下载。"""
-        self._cancelled = True
+        self._cancelled.set()
         self._cancel_btn.setEnabled(False)
         self._cancel_btn.setText("正在取消...")
         self.set_status("正在取消下载...")
@@ -101,7 +102,8 @@ class UpdateProgressDialogUI(QtWidgets.QDialog):
             self._cancel_callback()
 
     def is_cancelled(self) -> bool:
-        return self._cancelled
+        """返回取消状态，可安全地由下载线程读取。"""
+        return self._cancelled.is_set()
 
     def set_cancel_callback(self, callback: Callable[[], None]) -> None:
         """设置取消下载时的回调（用于通知 service 停止下载）。"""
@@ -113,8 +115,8 @@ class UpdateProgressDialogUI(QtWidgets.QDialog):
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
         """关闭对话框时标记为取消并通知 service。"""
-        if not self._cancelled:
-            self._cancelled = True
+        if not self._cancelled.is_set():
+            self._cancelled.set()
             if self._cancel_callback:
                 self._cancel_callback()
         super().closeEvent(event)
