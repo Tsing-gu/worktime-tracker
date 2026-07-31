@@ -12,7 +12,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "worktime-tracker"
-version = "0.19.0"
+version = "1.0.0"
 description = "macOS 工时计算器 - 基于键鼠活动检测自动追踪每日工作时长"
 requires-python = ">=3.12"
 
