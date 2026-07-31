@@ -1,20 +1,4 @@
-"""弹窗视图统一入口。"""
+"""应用中的对话框视图包。
 
-from src.ui.calendar_dialog import CalendarHistoryDialogUI
-from src.ui.confirm_dialog import ConfirmYesterdayDialogUI
-from src.ui.edit_start_dialog import EditStartDialogUI
-from src.ui.leave_dialog import LeaveDialogUI
-from src.ui.pmset_summary_dialog import PmsetSummaryDialogUI
-from src.ui.settings_dialog import SettingsDialogUI
-from src.ui.update_dialog import UpdateConfirmDialogUI, UpdateProgressDialogUI
-
-__all__ = [
-    "CalendarHistoryDialogUI",
-    "ConfirmYesterdayDialogUI",
-    "EditStartDialogUI",
-    "LeaveDialogUI",
-    "PmsetSummaryDialogUI",
-    "SettingsDialogUI",
-    "UpdateConfirmDialogUI",
-    "UpdateProgressDialogUI",
-]
+具体对话框通过模块路径导入，避免包初始化时加载整个 UI 树。
+"""

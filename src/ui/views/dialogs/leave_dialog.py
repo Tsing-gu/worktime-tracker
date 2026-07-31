@@ -12,7 +12,7 @@ from datetime import date
 from PySide6 import QtCore, QtWidgets
 
 from src.config import LEAVE_TYPES
-from src.ui.dialog_buttons import make_dialog_button
+from src.ui.components.dialog_buttons import make_dialog_button
 
 
 class LeaveDialogUI(QtWidgets.QDialog):

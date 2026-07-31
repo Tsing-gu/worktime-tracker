@@ -11,7 +11,7 @@ from PySide6 import QtCore, QtWidgets
 
 from src.app.runtime import start_managed_thread
 from src.services.tracking_service import TrackingService
-from src.ui.dialog_buttons import make_dialog_button
+from src.ui.components.dialog_buttons import make_dialog_button
 
 
 class EditStartDialogUI(QtWidgets.QDialog):

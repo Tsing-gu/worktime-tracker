@@ -32,7 +32,7 @@ from src.config import (
     SETTING_WEEKLY_WORK_DAYS,
     SETTING_WORK_START_FLOOR,
 )
-from src.ui.dialog_buttons import make_dialog_button
+from src.ui.components.dialog_buttons import make_dialog_button
 from src.ui.theme import get_theme
 
 

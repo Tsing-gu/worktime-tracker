@@ -14,7 +14,7 @@ from collections.abc import Callable
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from src.ui.dialog_buttons import make_dialog_button
+from src.ui.components.dialog_buttons import make_dialog_button
 from src.utils.version import get_version
 
 

@@ -2,7 +2,7 @@
 test_dialog_coordinator - 弹窗协调器测试
 ==========================================
 
-覆盖 src/ui/dialog_coordinator.py 的 DialogCoordinator：
+覆盖 src/ui/controllers/dialog_controller.py 的 DialogCoordinator：
 - open：统一打开非模态弹窗 + 自动管理 _busy/_pending
 - busy：弹窗状态查询
 - 并发弹窗拒绝（_busy=True 时 open 返回 False）
@@ -19,7 +19,7 @@ import pytest
 from PySide6 import QtWidgets
 
 from src.services.factory import ServiceFactory
-from src.ui.dialog_coordinator import DialogCoordinator
+from src.ui.controllers.dialog_controller import DialogCoordinator
 
 pytestmark = pytest.mark.gui
 

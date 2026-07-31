@@ -1,13 +1,4 @@
-"""UI 流程控制器的统一入口。"""
+"""UI 流程控制器包。
 
-from src.ui.controllers.dialog_controller import DialogCoordinator
-from src.ui.controllers.poll_controller import PollController
-from src.ui.controllers.tray_controller import TrayController
-from src.ui.controllers.update_controller import UpdateFlowController
-
-__all__ = [
-    "DialogCoordinator",
-    "PollController",
-    "TrayController",
-    "UpdateFlowController",
-]
+控制器通过明确的模块路径导入，包入口不主动加载具体实现，避免页面与控制器循环依赖。
+"""

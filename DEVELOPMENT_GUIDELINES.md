@@ -21,7 +21,7 @@ UI 可以展示 Service 返回的领域模型，也可以引用共享配置和�
 UI 内部按职责拆分为 `views/`、`components/`、`controllers/`、`models/` 和后续的
 `animations/`。`views/` 负责页面组合，`components/` 负责可复用控件，
 `controllers/` 将 Service 结果转换为展示状态，`models/` 保存展示状态，动画只处理视觉效果。
-旧的 `src/ui/*.py` 导入路径作为兼容入口保留；新增代码优先使用对应子包路径。
+UI 实现必须放在对应子包中，禁止重新在 `src/ui/` 根目录新增窗口、控制器或主题实现。
 线程管理属于 `src/app/runtime/`，不得重新放回 `src/utils/` 或由单个窗口私自维护。
 
 ### 依赖注入与状态

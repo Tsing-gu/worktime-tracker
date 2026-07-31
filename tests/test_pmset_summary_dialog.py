@@ -2,7 +2,7 @@
 test_pmset_summary_dialog - pmset 推断弹窗测试
 =================================================
 
-覆盖 src/ui/pmset_summary_dialog.py 的 PmsetSummaryDialogUI：
+覆盖 src/ui/views/dialogs/pmset_summary_dialog.py 的 PmsetSummaryDialogUI：
 - 初始化时触发子线程加载 pmset 推断
 - _render_table：表格内容渲染
 - _configure_apply_button：按钮启用/禁用逻辑
@@ -25,7 +25,7 @@ from PySide6 import QtWidgets
 
 from src.data.models import PmsetDailySummary
 from src.services.factory import ServiceFactory
-from src.ui.pmset_summary_dialog import PmsetSummaryDialogUI
+from src.ui.views.dialogs.pmset_summary_dialog import PmsetSummaryDialogUI
 
 pytestmark = pytest.mark.gui
 

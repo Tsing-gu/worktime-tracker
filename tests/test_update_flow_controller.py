@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from PySide6 import QtWidgets
 
-from src.ui.update_flow_controller import UpdateFlowController
+from src.ui.controllers.update_controller import UpdateFlowController
 
 pytestmark = pytest.mark.gui
 

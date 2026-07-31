@@ -12,7 +12,7 @@ from datetime import date, datetime
 
 from PySide6 import QtCore, QtWidgets
 
-from src.ui.dialog_buttons import make_dialog_button
+from src.ui.components.dialog_buttons import make_dialog_button
 
 
 class ConfirmYesterdayDialogUI(QtWidgets.QDialog):

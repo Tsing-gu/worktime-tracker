@@ -1,5 +1,4 @@
-"""页面和窗口视图。"""
+"""页面和窗口视图包。
 
-from src.ui.views.main_window import MainWindowUI
-
-__all__ = ["MainWindowUI"]
+视图通过明确的模块路径导入，包入口不主动加载主窗口，避免控制器循环依赖。
+"""

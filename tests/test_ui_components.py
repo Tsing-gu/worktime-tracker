@@ -42,7 +42,7 @@ def test_today_status_card_emits_actions(qtbot) -> None:
 
 
 def test_update_progress_dialog_cancel_state_is_thread_safe(qtbot) -> None:
-    from src.ui.update_dialog import UpdateProgressDialogUI
+    from src.ui.views.dialogs.update_dialog import UpdateProgressDialogUI
 
     dialog = UpdateProgressDialogUI()
     qtbot.addWidget(dialog)

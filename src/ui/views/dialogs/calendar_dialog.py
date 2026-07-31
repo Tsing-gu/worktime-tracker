@@ -20,10 +20,10 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from src.config import LEAVE_TYPES, SETTING_DAILY_REQUIRED_HOURS
 from src.services.factory import ServiceFactory
-from src.ui.dialog_buttons import make_dialog_button
-from src.ui.leave_dialog import LeaveDialogUI
-from src.ui.pmset_summary_dialog import PmsetSummaryDialogUI
+from src.ui.components.dialog_buttons import make_dialog_button
 from src.ui.theme import get_theme
+from src.ui.views.dialogs.leave_dialog import LeaveDialogUI
+from src.ui.views.dialogs.pmset_summary_dialog import PmsetSummaryDialogUI
 from src.utils.date_utils import compute_work_date
 
 

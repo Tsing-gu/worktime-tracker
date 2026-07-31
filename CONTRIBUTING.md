@@ -187,12 +187,18 @@ curl -sIL "https://github.com/Tsing-gu/worktime-tracker/releases/download/v0.XX.
 worktime-tracker/
 ├── main.py                  # 程序入口
 ├── src/
+│   ├── app/                 # 应用装配与运行时生命周期
 │   ├── config.py            # 全局配置常量
 │   ├── core/                # 纯业务逻辑层
 │   ├── data/                # 数据存储层（唯一操作 SQLite）
 │   ├── services/            # 服务编排层
 │   ├── ui/                  # 界面层（PySide6）
-│   └── utils/               # 工具层（无状态纯函数）
+│   │   ├── views/            # 页面与对话框
+│   │   ├── components/       # 可复用控件
+│   │   ├── controllers/      # UI 流程控制器
+│   │   ├── models/           # 展示状态模型
+│   │   └── theme/            # 主题与 QSS
+│   └── utils/               # 无状态纯函数与系统适配
 ├── tests/                   # 测试
 ├── docs/                    # 文档
 ├── scripts/                 # 脚本

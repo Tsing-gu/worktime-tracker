@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from PySide6 import QtCore, QtWidgets
 
+from src.ui.components.dialog_buttons import make_dialog_button
 from src.ui.components.progress_card import ProgressCard
-from src.ui.dialog_buttons import make_dialog_button
 
 
 class TodayStatusCard(QtWidgets.QFrame):

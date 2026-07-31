@@ -2,7 +2,7 @@
 test_dialog_buttons - 对话框按钮封装单元测试
 =============================================
 
-覆盖 src/ui/dialog_buttons.py 的 make_dialog_button：
+覆盖 src/ui/components/dialog_buttons.py 的 make_dialog_button：
 - primary / secondary / danger 三种角色配置正确
 - 点击触发回调
 - fixed_height / fixed_size 参数生效
@@ -15,7 +15,7 @@ from __future__ import annotations
 import pytest
 from PySide6 import QtCore
 
-from src.ui.dialog_buttons import make_dialog_button
+from src.ui.components.dialog_buttons import make_dialog_button
 
 pytestmark = pytest.mark.gui
 
