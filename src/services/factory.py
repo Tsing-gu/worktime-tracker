@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 from datetime import date
 
-from src.config import HOLIDAY_API_URLS, HOLIDAY_CACHE_FILE
+from src.config import DB_PATH, HOLIDAY_API_URLS, HOLIDAY_CACHE_FILE
 from src.core.tracker import WorkTrackerCore
 from src.data.activity_repo import ActivityRepository
 from src.data.database import Repository
@@ -41,12 +41,17 @@ class ServiceFactory:
         factory.stats_service.get_today_status()
     """
 
-    def __init__(self) -> None:
+    def __init__(self, db_path: str = DB_PATH) -> None:
+        """创建服务及其 Repository。
+
+        生产环境使用默认用户数据库；测试环境传入临时路径，避免访问真实数据。
+        """
+        self._db_path = db_path
         # 仓储层
-        self.settings_repo = SettingsRepository()
-        self.activity_repo = ActivityRepository()
-        self.worktime_repo = DailyWorktimeRepository()
-        self.holiday_repo = HolidayRepository()
+        self.settings_repo = SettingsRepository(db_path)
+        self.activity_repo = ActivityRepository(db_path)
+        self.worktime_repo = DailyWorktimeRepository(db_path)
+        self.holiday_repo = HolidayRepository(db_path)
 
         # 节假日服务
         self.holiday_service = HolidayService(
@@ -92,7 +97,7 @@ class ServiceFactory:
 
         在子线程中调用（含节假日 API 网络请求），不阻塞主线程。
         """
-        Repository.init()
+        Repository.init(self._db_path)
         self.settings_service.init()
         self.holiday_service.ensure_loaded(date.today().year)
         self.tracking_service.init_work_date()

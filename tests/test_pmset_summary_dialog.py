@@ -26,13 +26,21 @@ from src.data.models import PmsetDailySummary
 from src.services.factory import ServiceFactory
 from src.ui.pmset_summary_dialog import PmsetSummaryDialogUI
 
+pytestmark = pytest.mark.gui
+
 
 @pytest.fixture
-def factory(tmp_db: Path, sample_holidays) -> ServiceFactory:
+def factory(tmp_db: Path, sample_holidays, monkeypatch) -> ServiceFactory:
     """构造测试用 ServiceFactory。"""
-    f = ServiceFactory()
+    f = ServiceFactory(db_path=str(tmp_db))
     f.settings_service.init()
     f.holiday_repo.save_year(2026, sample_holidays)
+    # 所有测试默认只验证 UI；需要数据的用例在自身作用域覆盖该 mock。
+    monkeypatch.setattr(
+        f.tracking_service,
+        "get_recent_pmset_summary",
+        lambda days=7: [],
+    )
     return f
 
 

@@ -76,6 +76,9 @@ class UpdateFlowController(QtCore.QObject):
         自动检查路径不弹"已是最新"/"检查失败"提示——静默处理。
         用 update_check_finished 信号但区分手动/自动：自动路径用 "auto" 标记。
         """
+        if self._update_checking:
+            return
+        self._update_checking = True
         record = self._factory.record_service
         record.mark_yesterday_checked()
 
@@ -86,6 +89,7 @@ class UpdateFlowController(QtCore.QObject):
                 self.update_check_finished.emit(("auto", info))
             except Exception as e:
                 logger.warning("[Update] 自动检查失败：%s", e)
+                self.update_check_finished.emit(("auto", "error"))
 
         threading.Thread(target=worker, daemon=True).start()
 
@@ -102,13 +106,14 @@ class UpdateFlowController(QtCore.QObject):
         """
         source, info = payload
 
+        self._update_checking = False
+
         if source == "auto":
-            if info:
+            if info and info != "error":
                 self._show_update_confirm(info)
             return
 
         # 手动检查路径
-        self._update_checking = False
         if info == "error":
             self._dialogs.msg_warning("检查更新", "检查失败，请稍后重试")
         elif info:

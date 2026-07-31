@@ -155,8 +155,6 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
 
         threading.Thread(target=worker, daemon=True).start()
 
-        threading.Thread(target=worker, daemon=True).start()
-
     def _on_loaded(self, summaries: object) -> None:
         """子线程读取完成后在主线程渲染表格。"""
         self._loading = False

@@ -111,7 +111,7 @@ def get_network_status(office_domain: str = "") -> dict:
     """
     检测当前网络是否属公司内网。
 
-    通过解析 DHCP 下发的 domain_search 字段判定：
+    通过默认路由/物理网络接口解析 DHCP 下发的 domain_search 字段判定：
     - 与 office_domain 匹配 → 在公司内网
     - office_domain 为空或不匹配 → 不在公司
 
@@ -125,24 +125,59 @@ def get_network_status(office_domain: str = "") -> dict:
         at_office: True=在公司内网, False=不在
         domain:    实际下发的搜索域字符串（失败时为空串）
     """
+    for interface in _get_network_interfaces():
+        try:
+            result = subprocess.run(
+                ["ipconfig", "getpacket", interface],
+                capture_output=True,
+                text=True,
+                timeout=3,
+            )
+        except Exception:
+            continue
+
+        for line in result.stdout.split("\n"):
+            if "domain_search" in line:
+                m = re.search(r"\{(.+?)\}", line)
+                if m:
+                    domains = m.group(1).split()
+                    at_office = office_domain in domains if office_domain else False
+                    return {"at_office": at_office, "domain": " ".join(domains)}
+    return {"at_office": False, "domain": ""}
+
+
+def _get_network_interfaces() -> list[str]:
+    """获取优先使用的网络接口，默认路由接口排在最前。"""
+    interfaces: list[str] = []
+
     try:
-        result = subprocess.run(
-            ["ipconfig", "getpacket", "en0"],
+        route = subprocess.run(
+            ["route", "-n", "get", "default"],
             capture_output=True,
             text=True,
             timeout=3,
         )
+        match = re.search(r"^interface:\s*(\S+)", route.stdout, re.MULTILINE)
+        if match:
+            interfaces.append(match.group(1))
     except Exception:
-        return {"at_office": False, "domain": ""}
+        pass
 
-    for line in result.stdout.split("\n"):
-        if "domain_search" in line:
-            m = re.search(r"\{(.+?)\}", line)
-            if m:
-                domains = m.group(1).split()
-                at_office = office_domain in domains if office_domain else False
-                return {"at_office": at_office, "domain": " ".join(domains)}
-    return {"at_office": False, "domain": ""}
+    # route 不可用时，枚举物理网络接口；en0 仅作为最后兼容 fallback。
+    try:
+        listing = subprocess.run(
+            ["ifconfig", "-l"],
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+        interfaces.extend(name for name in listing.stdout.split() if name.startswith("en"))
+    except Exception:
+        pass
+
+    if not interfaces:
+        interfaces.append("en0")
+    return list(dict.fromkeys(interfaces))
 
 
 # ─── pmset 电源日志 ───────────────────────────────────────────

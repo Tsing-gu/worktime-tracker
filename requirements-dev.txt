@@ -13,8 +13,9 @@ mypy>=1.10,<2.0
 types-PySide6>=6.7
 
 # 代码风格
-ruff>=0.5
-black>=24.4
+# 与 .pre-commit-config.yaml 保持同一主版本，避免本地与 CI 格式漂移
+ruff>=0.5,<0.6
+black>=24.4,<25.0
 
 # 提交钩子
 pre-commit>=3.7

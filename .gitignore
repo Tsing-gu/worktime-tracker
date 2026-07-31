@@ -60,7 +60,7 @@ build_icon.iconset/
 config.local.py
 .obsidian/
 
-# 文档/系统配置（不公开）
+# 本地文档/系统配置（不公开）
 ARCHITECTURE.md
 CLAUDE.md
 docs/

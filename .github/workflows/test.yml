@@ -1,7 +1,7 @@
 # GitHub Actions CI - 持续集成
 #
 # 触发：push 到 main/master / 任意 PR
-# 步骤：ruff check → mypy → pytest
+# 步骤：统一调用 scripts/check.sh，避免本地与 CI 命令漂移
 # 环境：Ubuntu runner + Python 3.12
 # 跳过：manual / macos / gui marker 的测试（Linux runner 无法跑 macOS 系统调用和图形界面）
 
@@ -32,29 +32,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
 
-      - name: ruff check
-        run: ruff check src/
-
-      - name: ruff format check
-        run: ruff format --check src/
-
-      - name: black check
-        run: black --check src/
-
-      - name: mypy
-        # Phase 0 宽松模式：忽略 PySide6 存根不全 + 现有代码类型债
-        # 详见 pyproject.toml [tool.mypy] 段注释
-        run: |
-          mypy --config-file=pyproject.toml \
-            --disable-error-code=attr-defined \
-            --disable-error-code=assignment \
-            --disable-error-code=type-arg \
-            --disable-error-code=no-any-return \
-            --disable-error-code=name-defined \
-            --disable-error-code=return-value \
-            --disable-error-code=import-untyped \
-            src/
-
-      - name: pytest
-        # 跳过 manual / macos / gui marker（Linux runner 无法跑 macOS 系统调用和图形界面）
-        run: pytest -m "not manual and not macos and not gui"
+      - name: Quality checks
+        # 脚本内部跳过 manual / macos / gui 测试，并统一 mypy 兼容参数。
+        run: bash scripts/check.sh all

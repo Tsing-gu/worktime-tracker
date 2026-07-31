@@ -12,9 +12,12 @@ test_dialog_buttons - 对话框按钮封装单元测试
 
 from __future__ import annotations
 
+import pytest
 from PySide6 import QtCore
 
 from src.ui.dialog_buttons import make_dialog_button
+
+pytestmark = pytest.mark.gui
 
 
 class TestMakeDialogButton:

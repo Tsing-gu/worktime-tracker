@@ -10,12 +10,15 @@ update_service - 纯 Python 自动更新服务
 
 import logging
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 from xml.etree import ElementTree
 
@@ -53,16 +56,16 @@ class UpdateService:
 
     def __init__(self, settings_repo: SettingsRepository):
         self._temp_dir = tempfile.gettempdir()
-        self._cancelled = False
+        self._cancel_event = threading.Event()
         self._settings = settings_repo
 
     def cancel_download(self) -> None:
         """取消正在进行的下载。"""
-        self._cancelled = True
+        self._cancel_event.set()
 
     def reset_cancel(self) -> None:
         """重置取消标志。"""
-        self._cancelled = False
+        self._cancel_event.clear()
 
     # ─── 版本检查 ──────────────────────────────────────────
 
@@ -93,10 +96,12 @@ class UpdateService:
         import ssl
 
         ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_NONE
         for url in (UPDATE_FEED_URL, UPDATE_FEED_FALLBACK_URL):
             try:
+                parsed = urlparse(url)
+                if parsed.scheme != "https" or not parsed.netloc:
+                    logger.warning("[Update] 忽略不安全更新地址：%s", url)
+                    continue
                 req = Request(url, headers={"User-Agent": "worktime-tracker"})
                 with urlopen(req, timeout=15, context=ctx) as resp:
                     return resp.read().decode("utf-8")
@@ -123,7 +128,14 @@ class UpdateService:
                 return None
 
             dmg_url = enclosure.get("url", "")
+            parsed_url = urlparse(dmg_url)
+            if parsed_url.scheme != "https" or not parsed_url.netloc:
+                return None
+            if not version or not short:
+                return None
             length = int(enclosure.get("length", "0"))
+            if length < 0:
+                return None
             return UpdateInfo(
                 version=version,
                 short_version=short,
@@ -157,14 +169,17 @@ class UpdateService:
         progress_callback: Callable[[int, int], None] | None = None,
     ) -> str | None:
         """下载 DMG 到临时目录。"""
+        if self._cancel_event.is_set():
+            return None
         try:
             import ssl
 
             ctx = ssl.create_default_context()
-            ctx.check_hostname = False
-            ctx.verify_mode = ssl.CERT_NONE
 
             url = encode_url(dmg_url)
+            parsed_url = urlparse(url)
+            if parsed_url.scheme != "https" or not parsed_url.netloc:
+                raise ValueError("更新下载地址必须使用 HTTPS")
             req = Request(url, headers={"User-Agent": "worktime-tracker"})
             with urlopen(req, timeout=10, context=ctx) as resp:
                 total = int(resp.headers.get("Content-Length", 0))
@@ -175,7 +190,7 @@ class UpdateService:
                 timeout_count = 0
                 with open(dmg_path, "wb") as f:
                     while True:
-                        if self._cancelled:
+                        if self._cancel_event.is_set():
                             f.close()
                             try:
                                 os.remove(dmg_path)
@@ -185,7 +200,7 @@ class UpdateService:
                         try:
                             buf = resp.read(chunk)
                         except TimeoutError:
-                            if self._cancelled:
+                            if self._cancel_event.is_set():
                                 f.close()
                                 try:
                                     os.remove(dmg_path)
@@ -213,7 +228,7 @@ class UpdateService:
                             progress_callback(downloaded, total)
             return dmg_path
         except Exception as e:
-            if self._cancelled:
+            if self._cancel_event.is_set():
                 return None
             logger.warning("[Update] 下载失败：%s", e)
             return None
@@ -234,42 +249,68 @@ class UpdateService:
     def install_and_restart(self, dmg_path: str) -> bool:
         """写外部 updater 脚本 → 退出主进程 → 脚本挂载 DMG → 替换 .app → 重启。"""
         app_path = self._get_app_path()
-        if not app_path:
+        if not app_path or not os.path.isdir(app_path) or not os.path.isfile(dmg_path):
             logger.warning("[Update] 无法获取 .app 路径，开发环境不自动更新")
             return False
 
         app_name = os.path.basename(app_path)
-        mount_point = "/tmp/wt_update_mount"
+        mount_point = tempfile.mkdtemp(prefix="worktime_update_mount_")
         updater_script = os.path.join(self._temp_dir, "worktime_updater.sh")
+        q_dmg = shlex.quote(dmg_path)
+        q_mount = shlex.quote(mount_point)
+        q_app = shlex.quote(app_path)
+        q_app_name = shlex.quote(app_name)
+        q_script = shlex.quote(updater_script)
 
-        with open(updater_script, "w") as f:
-            f.write(
-                f"""#!/bin/bash
-set -e
-# 等待主进程完全退出
+        try:
+            with open(updater_script, "w", encoding="utf-8") as f:
+                f.write(
+                    f"""#!/bin/bash
+set -euo pipefail
+mounted=0
+staged_app={q_mount}/staged.app
+backup_app={q_app}.backup.$$
+cleanup() {{
+  if [ "$mounted" -eq 1 ]; then hdiutil detach {q_mount} -force >/dev/null 2>&1 || true; fi
+  rm -rf {q_mount} "$staged_app"
+  rm -f {q_dmg} {q_script}
+}}
+trap cleanup EXIT
+
 sleep 2
-# 挂载 DMG
-hdiutil attach "{dmg_path}" -nobrowse -mountpoint "{mount_point}"
-# 等待挂载完成
-sleep 1
-# 替换 .app（重试 3 次，rm 失败则退出）
-for i in 1 2 3; do
-  rm -rf "{app_path}" && break
-  sleep 1
-done
-cp -R "{mount_point}/{app_name}" "{app_path}"
-hdiutil detach "{mount_point}" -force
-rm -f "{dmg_path}"
-open "{app_path}"
-rm -f "{updater_script}"
+hdiutil attach {q_dmg} -nobrowse -mountpoint {q_mount}
+mounted=1
+source_app={q_mount}/{q_app_name}
+if [ ! -d "$source_app" ]; then
+  echo "更新镜像中未找到应用" >&2
+  exit 1
+fi
+cp -R "$source_app" "$staged_app"
+if [ ! -d "$staged_app" ]; then
+  echo "应用暂存失败" >&2
+  exit 1
+fi
+mv {q_app} "$backup_app"
+if ! mv "$staged_app" {q_app}; then
+  mv "$backup_app" {q_app}
+  exit 1
+fi
+rm -rf "$backup_app"
+open {q_app}
 """
+                )
+            os.chmod(updater_script, 0o755)
+            subprocess.Popen(
+                ["bash", updater_script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
             )
-        os.chmod(updater_script, 0o755)
-
-        subprocess.Popen(
-            ["bash", updater_script], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-        )
-        return True
+            return True
+        except OSError as e:
+            logger.warning("[Update] 创建更新脚本失败：%s", e)
+            try:
+                os.remove(updater_script)
+            except OSError:
+                pass
+            return False
 
     def _get_app_path(self) -> str | None:
         """获取当前 .app 的完整路径。"""

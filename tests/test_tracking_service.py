@@ -375,6 +375,22 @@ class TestBackfillOffTime:
         assert record is not None
         assert record["end_time"] is None
 
+    def test_overnight_active_time_is_not_aligned_to_future_floor(
+        self, tracking_service: TrackingService
+    ) -> None:
+        """次日凌晨活动保持真实时间，不应被补录为次日 19:00。"""
+        prev_date = date(2026, 7, 14)
+        start_time = datetime(2026, 7, 14, 9, 0, 0)
+        events = [(datetime(2026, 7, 15, 1, 30, 0), 1.0, True, True)]
+        self._insert_prev_day(tracking_service, prev_date, start_time, events)
+
+        tracking_service._backfill_off_time(prev_date, datetime(2026, 7, 15, 2, 0, 0))
+
+        record = tracking_service._worktime_repo.get(prev_date)
+        assert record is not None
+        assert record["end_time"] == datetime(2026, 7, 15, 1, 30, 0).strftime(DT_FORMAT)
+        assert record["total_hours"] == 16.5
+
 
 class TestGetRecentPmsetSummary:
     """get_recent_pmset_summary：读取近 N 天 pmset 推断 + DB 对比。"""
@@ -652,15 +668,13 @@ class TestApplyPmsetEndTime:
             target, start_time=start_time, source="auto", required_hours=8.0
         )
 
-        # 02:00 早于 22:00 → 跨天到次日 02:00，对齐到 19:00 不生效（02:00 > 19:00?）
-        # 实际：02:00 次日 → minute_total = 2*60 = 120 < 19*60=1140 → 对齐到 19:00
-        # 但对齐后是次日 19:00，total_hours = 21h
+        # 02:00 早于 22:00 → 跨天到次日 02:00，不对齐到未来 19:00。
         result = tracking_service.apply_pmset_end_time(target, datetime(2026, 7, 14, 2, 0, 0))
 
         assert result is True
         record = tracking_service._worktime_repo.get(target)
         assert record is not None
-        # 跨天后 end_time 应是次日 19:00
-        assert record["end_time"] == datetime(2026, 7, 15, 19, 0, 0).strftime(DT_FORMAT)
-        # 22:00 → 次日 19:00 = 21h
-        assert record["total_hours"] == 21.0
+        # 跨天后 end_time 保持次日 02:00
+        assert record["end_time"] == datetime(2026, 7, 15, 2, 0, 0).strftime(DT_FORMAT)
+        # 22:00 → 次日 02:00 = 4h
+        assert record["total_hours"] == 4.0

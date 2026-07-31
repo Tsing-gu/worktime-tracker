@@ -229,11 +229,15 @@ class TrackingService:
         if off_time is None or off_time <= start_time:
             return
 
-        # 对齐到下班时间下限
+        # 次日凌晨属于前一工作日的延续，不得对齐到未来的当日下班时间。
         off_floor_h, off_floor_m = map(int, settings.off_time_floor.split(":"))
         off_total_min = off_time.hour * 60 + off_time.minute
         floor_total_min = off_floor_h * 60 + off_floor_m
-        if off_total_min < floor_total_min:
+        is_overnight = off_time.date() > prev_date
+        if off_time > now:
+            logger.warning("跨天补录时间晚于检测时间，跳过：%s > %s", off_time, now)
+            return
+        if not is_overnight and off_total_min < floor_total_min:
             off_time = off_time.replace(
                 hour=off_floor_h, minute=off_floor_m, second=0, microsecond=0
             )
@@ -415,12 +419,12 @@ class TrackingService:
         if end_time < start_time:
             end_time += timedelta(days=1)
 
-        # 对齐到下班时间下限
+        # 次日凌晨属于目标工作日的延续，不得对齐到未来的当日下班时间。
         settings = self._settings.get()
         off_floor_h, off_floor_m = map(int, settings.off_time_floor.split(":"))
         off_total_min = end_time.hour * 60 + end_time.minute
         floor_total_min = off_floor_h * 60 + off_floor_m
-        if off_total_min < floor_total_min:
+        if end_time.date() == work_date and off_total_min < floor_total_min:
             end_time = end_time.replace(
                 hour=off_floor_h, minute=off_floor_m, second=0, microsecond=0
             )

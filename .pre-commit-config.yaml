@@ -61,6 +61,6 @@ repos:
         # 排除手动测试脚本和构建产物
         exclude: |
           (?x)^(
-              tests/test_clamshell\.py|
+              tests/manual_clamshell_test\.py|
               build/.*
           )$

@@ -21,6 +21,8 @@ from PySide6 import QtWidgets
 from src.services.factory import ServiceFactory
 from src.ui.dialog_coordinator import DialogCoordinator
 
+pytestmark = pytest.mark.gui
+
 
 @pytest.fixture
 def factory(tmp_db: Path, sample_holidays, monkeypatch) -> ServiceFactory:
@@ -29,7 +31,7 @@ def factory(tmp_db: Path, sample_holidays, monkeypatch) -> ServiceFactory:
     避免真实 HolidayService API 调用：手动创建 factory 后注入测试数据。
     """
     # 用真实 ServiceFactory 构造全部服务
-    f = ServiceFactory()
+    f = ServiceFactory(db_path=str(tmp_db))
     # 初始化数据库 + 设置
     f.settings_service.init()
     # 填充节假日

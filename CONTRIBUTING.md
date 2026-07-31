@@ -54,15 +54,12 @@ python3.12 -m venv .venv
 ### 5. 验证环境
 
 ```bash
-# 运行测试
-.venv/bin/pytest
-
-# 类型检查
-.venv/bin/mypy --config-file=pyproject.toml src/
+# 运行统一质量门禁
+bash scripts/check.sh all
 
 # 代码风格检查
-.venv/bin/ruff check src/
-.venv/bin/ruff format --check src/
+.venv/bin/ruff check src/ tests/
+.venv/bin/ruff format --check src/ tests/
 .venv/bin/black --check src/
 
 # 手动跑 pre-commit 全量检查
@@ -75,8 +72,9 @@ python3.12 -m venv .venv
 
 1. 激活虚拟环境（或全程用 `.venv/bin/python` / `.venv/bin/pytest` 等绝对路径）
 2. 修改代码
-3. 运行测试：`.venv/bin/pytest`
-4. 提交：`git commit`（pre-commit 自动检查）
+3. 运行检查：`bash scripts/check.sh all`
+4. 提交前运行 [DEVELOPMENT_GUIDELINES.md](DEVELOPMENT_GUIDELINES.md) 中的质量门禁
+5. 提交：`git commit`（已安装 pre-commit 时自动检查）
 
 ### IDE 配置
 
@@ -207,11 +205,11 @@ worktime-tracker/
 
 ## 编码规范
 
-详见 [CLAUDE.md](CLAUDE.md) 和 [docs/CODING_RULES.md](docs/CODING_RULES.md)。
+详见 [DEVELOPMENT_GUIDELINES.md](DEVELOPMENT_GUIDELINES.md) 和 [GIT_WORKFLOW.md](GIT_WORKFLOW.md)。
 
 核心规则：
-- 一个功能一个文件，文件内用类封装
-- 面向对象，不允许模块级散装函数（`utils/` 下纯工具函数除外）
+- 一个功能一个文件，按职责组织类和函数
+- 业务流程使用类封装；纯计算、日期、文本等无状态工具允许使用模块级函数
 - 分层依赖：UI → Services → Core，Data 是唯一直接操作 SQLite 的层
 - 数据层通过 Repository 模式操作，多步操作用 `with self.transaction() as conn:` 包裹
 
@@ -226,6 +224,9 @@ worktime-tracker/
 - `@pytest.mark.manual`：手动交互测试，CI 与常规 pytest 跳过
 - `@pytest.mark.macos`：依赖 macOS 系统调用，非 macOS 环境跳过
 - `@pytest.mark.gui`：需图形环境的 UI 测试，CI 跳过
+
+新增测试必须按真实依赖添加 marker；CI 的排除规则只有在测试正确标记后才会生效。
+测试失败时应修复代码或测试夹具，不得通过新增排除条件隐藏失败。
 
 ## 提交规范
 
@@ -256,4 +257,4 @@ fix: 修复跨天补录下班时间未对齐时间下限的问题
 - 配置：`pyproject.toml` 的 `[tool.mypy]` 段
 - 策略：分模块渐进收紧（Phase 0 宽松，后续阶段逐模块开启 strict）
 
-详见 [ARCHITECTURE.md](ARCHITECTURE.md)。
+详见 [DEVELOPMENT_GUIDELINES.md](DEVELOPMENT_GUIDELINES.md)。

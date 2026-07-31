@@ -278,3 +278,24 @@ class TestNetworkStatus:
         result = get_network_status("corp.kuaishou.com")
         assert result["at_office"] is False
         assert result["domain"] == ""
+
+    def test_uses_default_route_interface(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """优先使用默认路由接口，而不是固定 en0。"""
+        calls: list[list[str]] = []
+
+        def fake_run(args, **kwargs):
+            calls.append(args)
+            if args[:4] == ["route", "-n", "get", "default"]:
+                return _make_pmset_result(stdout="interface: en1\n")
+            if args[:2] == ["ifconfig", "-l"]:
+                return _make_pmset_result(stdout="lo0 en0 en1\n")
+            if args[:3] == ["ipconfig", "getpacket", "en1"]:
+                return _make_pmset_result(stdout="domain_search { corp.example }\n")
+            return _make_pmset_result(stdout="")
+
+        monkeypatch.setattr("src.utils.system.subprocess.run", fake_run)
+        result = get_network_status("corp.example")
+
+        assert result["at_office"] is True
+        assert ["ipconfig", "getpacket", "en1"] in calls
+        assert ["ipconfig", "getpacket", "en0"] not in calls
