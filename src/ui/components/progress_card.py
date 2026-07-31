@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from PySide6 import QtCore, QtWidgets
 
-from src.ui.theme import get_theme
+from src.ui.theme import set_progress_state
 
 
 class ProgressCard(QtWidgets.QWidget):
@@ -27,15 +27,6 @@ class ProgressCard(QtWidgets.QWidget):
 
     def set_progress(self, worked: float, required: float) -> None:
         """更新进度显示，不改变任何业务状态。"""
-        theme = get_theme()
-        reached = required > 0 and worked >= required
         percent = int(worked / required * 100) if required > 0 else 0
-        color = theme["green"] if reached else theme["primary"]
         self.progress_label.setText(f"今日目标 {required:.1f}h  {percent}%")
-        self.progress_bar.setMaximum(100)
-        self.progress_bar.setValue(min(100, percent))
-        self.progress_bar.setStyleSheet(
-            f"QProgressBar {{ background-color: {theme['track']}; border: none; "
-            f"border-radius: 4px; }}"
-            f"QProgressBar::chunk {{ background-color: {color}; border-radius: 4px; }}"
-        )
+        set_progress_state(self.progress_bar, worked, required)

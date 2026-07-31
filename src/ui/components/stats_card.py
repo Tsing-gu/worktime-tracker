@@ -5,7 +5,7 @@ from __future__ import annotations
 from PySide6 import QtWidgets
 
 from src.data.models import PeriodStats
-from src.ui.theme import get_theme
+from src.ui.theme import set_progress_state
 
 
 class StatsCard(QtWidgets.QFrame):
@@ -49,8 +49,7 @@ class StatsCard(QtWidgets.QFrame):
             self.line1.setText("休息中")
             self.line2.clear()
             self.line3.clear()
-            self.progress_bar.setValue(0)
-            self.progress_bar.setStyleSheet("")
+            set_progress_state(self.progress_bar, 0, 0)
             return
 
         self.line1.setText(f"已工作 {stats.worked_days}天 / {stats.total_workdays}天")
@@ -64,13 +63,4 @@ class StatsCard(QtWidgets.QFrame):
             left = max(0, stats.target_hours - stats.worked_hours)
             self.line3.setText(f"今天干完就放假啦！还剩{left:.1f}h")
 
-        theme = get_theme()
-        percent = int(stats.progress * 100)
-        color = theme["green"] if stats.worked_hours >= stats.target_hours else theme["primary"]
-        self.progress_bar.setMaximum(100)
-        self.progress_bar.setValue(min(100, percent))
-        self.progress_bar.setStyleSheet(
-            f"QProgressBar {{ background-color: {theme['track']}; border: none; "
-            f"border-radius: 3px; }}"
-            f"QProgressBar::chunk {{ background-color: {color}; border-radius: 3px; }}"
-        )
+        set_progress_state(self.progress_bar, stats.worked_hours, stats.target_hours)

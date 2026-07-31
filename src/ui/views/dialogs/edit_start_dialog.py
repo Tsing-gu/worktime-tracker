@@ -12,6 +12,7 @@ from PySide6 import QtCore, QtWidgets
 from src.app.runtime import start_managed_thread
 from src.services.tracking_service import TrackingService
 from src.ui.components.dialog_buttons import make_dialog_button
+from src.ui.theme.metrics import SMALL_DIALOG_WIDTH
 
 
 class EditStartDialogUI(QtWidgets.QDialog):
@@ -31,7 +32,7 @@ class EditStartDialogUI(QtWidgets.QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("修改上班时间")
-        self.setMinimumWidth(280)
+        self.setMinimumWidth(SMALL_DIALOG_WIDTH)
         self._service = service
 
         layout = QtWidgets.QVBoxLayout(self)

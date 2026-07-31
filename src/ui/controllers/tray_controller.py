@@ -22,7 +22,7 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from src.data.models import TodayStatus
 from src.services.stats_service import StatsService
-from src.ui.theme import get_theme
+from src.ui.theme import set_progress_state
 from src.utils.paths import resource_path
 
 
@@ -159,41 +159,7 @@ class TrayController(QtCore.QObject):
 
         menu = QtWidgets.QMenu(self._parent)
         menu.setAttribute(QtCore.Qt.WA_DeleteOnClose)
-        t = get_theme()
-        menu.setStyleSheet(
-            f"""
-            QMenu {{
-                background-color: {t["card"]};
-                border: 1px solid {t["stroke"]};
-                border-radius: 12px;
-                padding: 16px;
-                min-width: 200px;
-            }}
-            QMenu::item {{
-                padding: 4px 0;
-                color: {t["main"]};
-                font-size: 14px;
-                background: transparent;
-            }}
-            QMenu::item:disabled {{ color: {t["main"]}; }}
-            QMenu::separator {{ height: 1px; background: {t["div"]}; margin: 8px 0; }}
-            QLabel {{
-                background: transparent;
-                color: {t["main"]};
-            }}
-            QProgressBar {{
-                background-color: {t["track"]};
-                border: none;
-                border-radius: 4px;
-                min-height: 8px;
-                max-height: 8px;
-            }}
-            QProgressBar::chunk {{
-                background-color: {t["primary"]};
-                border-radius: 4px;
-            }}
-        """
-        )
+        menu.setObjectName("TrayPopup")
 
         # 菜单关闭后自动清理引用
         menu.aboutToHide.connect(self._on_popup_hidden)
@@ -221,7 +187,7 @@ class TrayController(QtCore.QObject):
 
         bar = QtWidgets.QProgressBar()
         bar.setTextVisible(False)
-        self._style_progress_bar(bar, worked, required)
+        set_progress_state(bar, worked, required)
         layout.addWidget(bar)
 
         pct = int(worked / required * 100) if required > 0 else 0
@@ -267,18 +233,3 @@ class TrayController(QtCore.QObject):
     def hide(self) -> None:
         """隐藏托盘图标（退出时调用）。"""
         self.tray.hide()
-
-    @staticmethod
-    def _style_progress_bar(bar: QtWidgets.QProgressBar, worked: float, required: float) -> None:
-        """统一设置进度条：按 worked/required 百分比填充，>=100% 变绿，钳制到满格。"""
-        t = get_theme()
-        reached = required > 0 and worked >= required
-        pct = int(worked / required * 100) if required > 0 else 0
-        color = t["green"] if reached else t["primary"]
-        radius = "3px" if bar.objectName() == "CardBar" else "4px"
-        bar.setMaximum(100)
-        bar.setValue(min(100, pct))
-        bar.setStyleSheet(
-            f"QProgressBar {{ background-color: {t['track']}; border: none; border-radius: {radius}; }}"
-            f"QProgressBar::chunk {{ background-color: {color}; border-radius: {radius}; }}"
-        )

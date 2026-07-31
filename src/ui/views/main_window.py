@@ -25,6 +25,7 @@ from src.ui.controllers.poll_controller import PollController
 from src.ui.controllers.tray_controller import TrayController
 from src.ui.controllers.update_controller import UpdateFlowController
 from src.ui.models import build_dashboard_view_state
+from src.ui.theme.metrics import CONTROL_SPACING, PAGE_MARGIN, SECTION_SPACING
 from src.utils.date_utils import compute_work_date
 from src.utils.paths import resource_path
 
@@ -104,8 +105,8 @@ class MainWindowUI(QtWidgets.QMainWindow):
         central = QtWidgets.QWidget()
         self.setCentralWidget(central)
         layout = QtWidgets.QVBoxLayout(central)
-        layout.setSpacing(16)
-        layout.setContentsMargins(28, 28, 28, 24)
+        layout.setSpacing(SECTION_SPACING)
+        layout.setContentsMargins(PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN, PAGE_MARGIN)
 
         # ── 日期标题 ──
         today = compute_work_date(datetime.now())
@@ -132,7 +133,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
 
         # ── 周/月统计卡片 ──
         cards = QtWidgets.QHBoxLayout()
-        cards.setSpacing(12)
+        cards.setSpacing(CONTROL_SPACING + 4)
         self.week_card = StatsCard("本期概览")
         self.month_card = StatsCard("本月概览")
         cards.addWidget(self.week_card)
@@ -143,7 +144,7 @@ class MainWindowUI(QtWidgets.QMainWindow):
 
         # ── 底部功能按钮 ──
         btn_box = QtWidgets.QHBoxLayout()
-        btn_box.setSpacing(10)
+        btn_box.setSpacing(CONTROL_SPACING)
         for label, handler in [
             ("设置", self.dialogs.on_settings),
             ("日历", self.dialogs.on_history),

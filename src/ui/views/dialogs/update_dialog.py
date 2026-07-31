@@ -15,6 +15,7 @@ from collections.abc import Callable
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from src.ui.components.dialog_buttons import make_dialog_button
+from src.ui.theme.metrics import DIALOG_BOTTOM_MARGIN, DIALOG_MARGIN, MEDIUM_DIALOG_WIDTH
 from src.utils.version import get_version
 
 
@@ -28,10 +29,10 @@ class UpdateConfirmDialogUI(QtWidgets.QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("发现新版本")
-        self.setMinimumWidth(380)
+        self.setMinimumWidth(MEDIUM_DIALOG_WIDTH)
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setContentsMargins(DIALOG_MARGIN, 20, DIALOG_MARGIN, DIALOG_BOTTOM_MARGIN)
         layout.setSpacing(12)
 
         title = QtWidgets.QLabel(f"新版本 {info.short_version} 可用")
@@ -66,10 +67,10 @@ class UpdateProgressDialogUI(QtWidgets.QDialog):
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("正在下载更新")
-        self.setMinimumWidth(360)
+        self.setMinimumWidth(MEDIUM_DIALOG_WIDTH)
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 20)
+        layout.setContentsMargins(DIALOG_MARGIN, 20, DIALOG_MARGIN, DIALOG_BOTTOM_MARGIN)
         layout.setSpacing(12)
 
         self._status_label = QtWidgets.QLabel("正在下载更新包...")

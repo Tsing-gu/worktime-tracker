@@ -13,6 +13,7 @@ from PySide6 import QtCore, QtWidgets
 
 from src.config import LEAVE_TYPES
 from src.ui.components.dialog_buttons import make_dialog_button
+from src.ui.theme.metrics import DIALOG_BOTTOM_MARGIN, DIALOG_MARGIN, MEDIUM_DIALOG_WIDTH
 
 
 class LeaveDialogUI(QtWidgets.QDialog):
@@ -33,10 +34,10 @@ class LeaveDialogUI(QtWidgets.QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("请假")
-        self.setMinimumWidth(360)
+        self.setMinimumWidth(MEDIUM_DIALOG_WIDTH)
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 16)
+        layout.setContentsMargins(DIALOG_MARGIN, DIALOG_MARGIN, DIALOG_MARGIN, DIALOG_BOTTOM_MARGIN)
         layout.setSpacing(12)
 
         # ── 请假日期选择 ──

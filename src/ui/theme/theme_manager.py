@@ -110,7 +110,6 @@ def get_theme() -> dict:
         "btn_hover": "#0066CC",
         "btn_pressed": "#0052A3",
         "input_bg": "#F5F5F7",
-        # 日历状态色（柔和底色 + 饱和前景色）
         "cal_green_bg": "#E8F8EE",
         "cal_green_fg": "#1A8B3A",
         "cal_red_bg": "#FDECEA",
@@ -126,6 +125,30 @@ def get_theme() -> dict:
         "cal_overtime_bg": "#E8F0FE",
         "cal_overtime_fg": "#0A6CD9",
     }
+
+
+def repolish(widget: QtWidgets.QWidget) -> None:
+    """在动态属性改变后让 QSS 立即重新匹配。"""
+    style = widget.style()
+    style.unpolish(widget)
+    style.polish(widget)
+    widget.update()
+
+
+def set_progress_state(
+    bar: QtWidgets.QProgressBar,
+    worked: float,
+    required: float,
+) -> None:
+    """统一设置进度条数值与状态，颜色由全局主题 QSS 控制。"""
+    percent = int(worked / required * 100) if required > 0 else 0
+    state = "complete" if required > 0 and worked >= required else "normal"
+    if required <= 0:
+        state = "empty"
+    bar.setProperty("progress-state", state)
+    bar.setMaximum(100)
+    bar.setValue(max(0, min(100, percent)))
+    repolish(bar)
 
 
 def build_qss(t: dict) -> str:
@@ -226,6 +249,12 @@ def build_qss(t: dict) -> str:
     QProgressBar::chunk {{
         background-color: {t["primary"]};
         border-radius: 4px;
+    }}
+    QProgressBar[progress-state="complete"]::chunk {{
+        background-color: {t["green"]};
+    }}
+    QProgressBar[progress-state="empty"]::chunk {{
+        background-color: transparent;
     }}
     QProgressBar#CardBar {{
         min-height: 6px;
@@ -341,6 +370,7 @@ def build_qss(t: dict) -> str:
         border-radius: 6px;
         padding: 4px 8px;
         font-size: 14px;
+        min-height: 32px;
     }}
     QSpinBox:focus, QDoubleSpinBox:focus, QTimeEdit:focus, QDateEdit:focus, QLineEdit:focus {{
         border-color: {t["primary"]};
@@ -357,6 +387,7 @@ def build_qss(t: dict) -> str:
         border-radius: 6px;
         padding: 4px 12px;
         font-size: 14px;
+        min-height: 32px;
     }}
     QComboBox:focus {{
         border-color: {t["primary"]};
@@ -476,15 +507,57 @@ def build_qss(t: dict) -> str:
         border: 1px solid {t["stroke"]};
         border-radius: 8px;
     }}
+    QFrame#DayCell[today="true"] {{
+        border: 2px solid {t["primary"]};
+    }}
+    QFrame#DayCell[day-state="complete"] {{
+        background-color: {t["cal_green_bg"]};
+    }}
+    QFrame#DayCell[day-state="incomplete"] {{
+        background-color: {t["cal_red_bg"]};
+    }}
+    QFrame#DayCell[day-state="leave"] {{
+        background-color: {t["cal_blue_bg"]};
+    }}
+    QFrame#DayCell[day-state="holiday"] {{
+        background-color: {t["cal_holiday_bg"]};
+    }}
+    QFrame#DayCell[day-state="overtime"] {{
+        background-color: {t["cal_overtime_bg"]};
+    }}
+    QFrame#DayCell[day-state="weekend"] {{
+        background-color: {t["cal_weekend_bg"]};
+    }}
+    QFrame#DayCell[day-state="workday"] {{
+        background-color: {t["cal_workday_bg"]};
+    }}
+    QFrame#DayCell[day-state="complete"] QLabel {{ color: {t["cal_green_fg"]}; }}
+    QFrame#DayCell[day-state="incomplete"] QLabel {{ color: {t["cal_red_fg"]}; }}
+    QFrame#DayCell[day-state="leave"] QLabel {{ color: {t["cal_blue_fg"]}; }}
+    QFrame#DayCell[day-state="holiday"] QLabel {{ color: {t["cal_holiday_fg"]}; }}
+    QFrame#DayCell[day-state="overtime"] QLabel {{ color: {t["cal_overtime_fg"]}; }}
+    QFrame#DayCell[day-state="weekend"] QLabel {{ color: {t["cal_weekend_fg"]}; }}
+    QFrame#DayCell[day-state="workday"] QLabel {{ color: {t["cal_workday_fg"]}; }}
     QFrame#DayCell:hover {{
         border-color: {t["primary"]};
     }}
     QFrame#DayCell QLabel {{
         font-size: 14px;
     }}
+    QLabel#DayNumber {{
+        font-weight: bold;
+    }}
     QLabel#DayCellInfo {{
         font-size: 9px;
     }}
+    QFrame#LegendDot {{
+        border-radius: 6px;
+        border: 1px solid {t["stroke"]};
+    }}
+    QFrame#LegendDot[day-state="complete"] {{ background-color: {t["cal_green_fg"]}; }}
+    QFrame#LegendDot[day-state="incomplete"] {{ background-color: {t["cal_red_fg"]}; }}
+    QFrame#LegendDot[day-state="leave"] {{ background-color: {t["cal_blue_fg"]}; }}
+    QFrame#LegendDot[day-state="holiday"] {{ background-color: {t["cal_holiday_fg"]}; }}
     QLabel#WeekHeader {{
         font-size: 13px;
         font-weight: bold;
@@ -545,6 +618,32 @@ def build_qss(t: dict) -> str:
     }}
     QLabel#OfficeDomain {{
         color: {t["sec"]};
+    }}
+    QLabel#OfficeDomain[state="configured"] {{
+        color: {t["green"]};
+    }}
+    QTableWidget#PmsetTable {{
+        font-size: 12px;
+    }}
+    QTableWidget#PmsetTable QHeaderView::section {{
+        font-size: 11px;
+        padding: 4px 8px;
+    }}
+    QPushButton#TableActionBtn {{
+        min-height: 28px;
+        padding: 4px 8px;
+        font-size: 12px;
+    }}
+    QMenu#TrayPopup {{
+        padding: 16px;
+        min-width: 200px;
+    }}
+    QMenu#TrayPopup::item {{
+        padding: 4px 0;
+        background: transparent;
+    }}
+    QMenu#TrayPopup QLabel {{
+        background: transparent;
     }}
     QPushButton#DangerBtn {{
         background-color: {t["card"]};

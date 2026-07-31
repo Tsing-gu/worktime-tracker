@@ -21,7 +21,8 @@ from PySide6 import QtCore, QtGui, QtWidgets
 from src.config import LEAVE_TYPES, SETTING_DAILY_REQUIRED_HOURS
 from src.services.factory import ServiceFactory
 from src.ui.components.dialog_buttons import make_dialog_button
-from src.ui.theme import get_theme
+from src.ui.theme import repolish
+from src.ui.theme.metrics import CALENDAR_DIALOG_WIDTH, DIALOG_BOTTOM_MARGIN, DIALOG_MARGIN
 from src.ui.views.dialogs.leave_dialog import LeaveDialogUI
 from src.ui.views.dialogs.pmset_summary_dialog import PmsetSummaryDialogUI
 from src.utils.date_utils import compute_work_date
@@ -58,7 +59,7 @@ class DayCellUI(QtWidgets.QFrame):
 
         # 日期数字
         self.day_label = QtWidgets.QLabel(str(day))
-        self.day_label.setStyleSheet("font-weight: bold;")
+        self.day_label.setObjectName("DayNumber")
         self.day_label.setAlignment(QtCore.Qt.AlignLeft | QtCore.Qt.AlignTop)
         layout.addWidget(self.day_label)
 
@@ -74,29 +75,19 @@ class DayCellUI(QtWidgets.QFrame):
         # 启用右键菜单
         self.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 
-    def set_status(
-        self, text: str, bg_color: str, fg_color: str = "", is_today: bool = False
-    ) -> None:
+    def set_status(self, text: str, state: str, is_today: bool = False) -> None:
         """
         设置日期格的显示文本和背景色。
 
         Args:
             text:      显示文本（工时/状态）
-            bg_color:  背景色（CSS 颜色值）
-            fg_color:  前景色（可选，默认不改变）
+            state:     主题状态名（complete/incomplete/leave/holiday/overtime/weekend/workday）
             is_today:  是否为今天（加蓝色边框高亮）
         """
-        from src.ui.theme import get_theme
-
-        t = get_theme()
-        primary = t["primary"]
         self.info_label.setText(text)
-        border = f"2px solid {primary}" if is_today else "1px solid transparent"
-        style = f"QFrame#DayCell {{ background-color: {bg_color}; border-radius: 8px; border: {border}; }}"
-        style += f"QFrame#DayCell:hover {{ background-color: {bg_color}; border-radius: 8px; border: 2px solid {primary}; }}"
-        if fg_color:
-            style += f" QLabel {{ color: {fg_color}; }}"
-        self.setStyleSheet(style)
+        self.setProperty("day-state", state)
+        self.setProperty("today", "true" if is_today else "false")
+        repolish(self)
 
 
 class CalendarHistoryDialogUI(QtWidgets.QDialog):
@@ -121,7 +112,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("日历")
-        self.setMinimumSize(820, 660)
+        self.setMinimumSize(CALENDAR_DIALOG_WIDTH, 660)
         if factory is None:
             raise ValueError("CalendarHistoryDialogUI 必须传入 factory 实例")
         self._factory = factory
@@ -135,7 +126,7 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         ThemeManagerUI.instance().theme_changed.connect(self.load_data)
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 16)
+        layout.setContentsMargins(DIALOG_MARGIN, 20, DIALOG_MARGIN, DIALOG_BOTTOM_MARGIN)
         layout.setSpacing(12)
 
         # ── 顶部控制栏 ──
@@ -164,7 +155,6 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         layout.addStretch()  # 顶部弹性空间
 
         # ── 日历主体 Card（固定宽度，居中）──
-        theme = get_theme()
         cal_card = QtWidgets.QFrame()
         cal_card.setObjectName("Card")
         cal_card.setFixedWidth(756)  # 7*100 + 6*4 + 32 margins
@@ -203,16 +193,16 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         legend.setSpacing(16)
         legend.setAlignment(QtCore.Qt.AlignCenter)
         for color, label in [
-            (theme["cal_green_fg"], "达标"),
-            (theme["cal_red_fg"], "不足"),
-            (theme["cal_blue_fg"], "请假"),
-            (theme["cal_holiday_fg"], "节假日"),
+            ("complete", "达标"),
+            ("incomplete", "不足"),
+            ("leave", "请假"),
+            ("holiday", "节假日"),
         ]:
             dot = QtWidgets.QFrame()
+            dot.setObjectName("LegendDot")
+            dot.setProperty("day-state", color)
             dot.setFixedSize(12, 12)
-            dot.setStyleSheet(
-                f"background-color: {color}; border-radius: 6px; border: 1px solid {theme['stroke']};"
-            )
+            repolish(dot)
             legend.addWidget(dot)
             legend.addWidget(QtWidgets.QLabel(label))
         hint = QtWidgets.QLabel("右键日期可请假/补录/清除")
@@ -296,7 +286,6 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
         records_map = {r["work_date"]: r for r in records}
         holidays_map = {h["date"]: h for h in holidays}
 
-        theme = get_theme()
         default_required = float(self._settings.get_setting(SETTING_DAILY_REQUIRED_HOURS, "8.0"))
 
         # 计算起始位置（周一起始）
@@ -319,21 +308,14 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
             if rec and rec.get("leave_type") and rec["leave_type"] != "none":
                 # 请假
                 leave_text = LEAVE_TYPES.get(rec["leave_type"], rec["leave_type"])
-                cell.set_status(leave_text, theme["cal_blue_bg"], theme["cal_blue_fg"], is_today)
+                cell.set_status(leave_text, "leave", is_today)
             elif hol and hol.get("is_off_day"):
                 # 法定假日
-                cell.set_status(
-                    hol["name"], theme["cal_holiday_bg"], theme["cal_holiday_fg"], is_today
-                )
+                cell.set_status(hol["name"], "holiday", is_today)
             elif hol and not hol.get("is_off_day"):
                 # 调休上班日
                 total = rec.get("total_hours", 0) if rec else 0
-                cell.set_status(
-                    f"调休 {total:.1f}h" if total else "调休上班",
-                    theme["cal_overtime_bg"],
-                    theme["cal_overtime_fg"],
-                    is_today,
-                )
+                cell.set_status(f"调休 {total:.1f}h" if total else "调休上班", "overtime", is_today)
             elif rec and rec.get("total_hours"):
                 # 有工时记录
                 total = rec["total_hours"]
@@ -346,28 +328,18 @@ class CalendarHistoryDialogUI(QtWidgets.QDialog):
                 end_short = end_str[11:16] if len(end_str) > 11 else ""
                 if reached:
                     cell.set_status(
-                        f"{total:.1f}h\n{start_short}-{end_short}",
-                        theme["cal_green_bg"],
-                        theme["cal_green_fg"],
-                        is_today,
+                        f"{total:.1f}h\n{start_short}-{end_short}", "complete", is_today
                     )
                 else:
                     cell.set_status(
-                        f"{total:.1f}h\n{start_short}-{end_short}",
-                        theme["cal_red_bg"],
-                        theme["cal_red_fg"],
-                        is_today,
+                        f"{total:.1f}h\n{start_short}-{end_short}", "incomplete", is_today
                     )
             else:
                 # 无记录
                 if d.weekday() >= 5:
-                    cell.set_status(
-                        "周末", theme["cal_weekend_bg"], theme["cal_weekend_fg"], is_today
-                    )
+                    cell.set_status("周末", "weekend", is_today)
                 else:
-                    cell.set_status(
-                        "--", theme["cal_workday_bg"], theme["cal_workday_fg"], is_today
-                    )
+                    cell.set_status("--", "workday", is_today)
 
             self.grid_layout.addWidget(cell, row, col)
             self._cells.append(cell)

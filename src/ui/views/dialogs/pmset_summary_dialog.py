@@ -27,6 +27,7 @@ from src.data.models import PmsetDailySummary
 from src.services.factory import ServiceFactory
 from src.services.tracking_service import TrackingService
 from src.ui.components.dialog_buttons import make_dialog_button
+from src.ui.theme.metrics import DIALOG_BOTTOM_MARGIN, DIALOG_MARGIN, TABLE_DIALOG_WIDTH
 from src.utils.date_utils import WEEKDAY_NAMES
 
 logger = logging.getLogger(__name__)
@@ -55,7 +56,7 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("近 7 天工时回溯")
-        self.setMinimumSize(720, 520)
+        self.setMinimumSize(TABLE_DIALOG_WIDTH, 520)
         # 设为模态，确保子弹窗始终在父弹窗前面（用户反馈期望）
         self.setModal(True)
         if factory is None:
@@ -68,7 +69,7 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
         self._workers: set[threading.Thread] = set()
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(24, 20, 24, 16)
+        layout.setContentsMargins(DIALOG_MARGIN, 20, DIALOG_MARGIN, DIALOG_BOTTOM_MARGIN)
         layout.setSpacing(12)
 
         # ── 顶部说明 ──
@@ -87,6 +88,7 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
 
         # ── 表格 ──
         self.table = QtWidgets.QTableWidget(0, 6)
+        self.table.setObjectName("PmsetTable")
         self.table.setHorizontalHeaderLabels(
             ["日期", "推断上班", "推断下班", "已有记录", "应用上班", "应用下班"]
         )
@@ -96,11 +98,6 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         self.table.setSelectionMode(QtWidgets.QAbstractItemView.NoSelection)
         self.table.setFocusPolicy(QtCore.Qt.NoFocus)
-        # 表格字号对齐日历主题（12px），表头稍小（11px）
-        self.table.setStyleSheet(
-            "QTableWidget { font-size: 12px; }"
-            "QHeaderView::section { font-size: 11px; padding: 4px 8px; }"
-        )
         header = self.table.horizontalHeader()
         # 所有列设为 Stretch，窗口缩放时按初始比例等比拉伸
         # 初始比例通过 resizeSection 设定，Stretch 模式按当前宽度比例分配额外空间
@@ -224,7 +221,7 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
                 fixed_size=(76, 26),
             )
             # 表格内按钮字号对齐表格内容（12px），比主题默认 13px 小一号
-            apply_start_btn.setStyleSheet("QPushButton { font-size: 12px; padding: 2px 6px; }")
+            apply_start_btn.setObjectName("TableActionBtn")
             self._configure_apply_button(apply_start_btn, s, is_start=True)
             self.table.setCellWidget(row, 4, self._wrap_centered(apply_start_btn))
 
@@ -235,7 +232,7 @@ class PmsetSummaryDialogUI(QtWidgets.QDialog):
                 partial(self._on_apply_end, row),
                 fixed_size=(76, 26),
             )
-            apply_end_btn.setStyleSheet("QPushButton { font-size: 12px; padding: 2px 6px; }")
+            apply_end_btn.setObjectName("TableActionBtn")
             self._configure_apply_button(apply_end_btn, s, is_start=False)
             self.table.setCellWidget(row, 5, self._wrap_centered(apply_end_btn))
 

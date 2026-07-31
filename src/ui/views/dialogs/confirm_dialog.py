@@ -13,6 +13,7 @@ from datetime import date, datetime
 from PySide6 import QtCore, QtWidgets
 
 from src.ui.components.dialog_buttons import make_dialog_button
+from src.ui.theme.metrics import DIALOG_BOTTOM_MARGIN, DIALOG_MARGIN, MEDIUM_DIALOG_WIDTH
 
 
 class ConfirmYesterdayDialogUI(QtWidgets.QDialog):
@@ -41,11 +42,11 @@ class ConfirmYesterdayDialogUI(QtWidgets.QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("昨日工时确认")
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(MEDIUM_DIALOG_WIDTH)
         self.work_date = work_date
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 16)
+        layout.setContentsMargins(DIALOG_MARGIN, DIALOG_MARGIN, DIALOG_MARGIN, DIALOG_BOTTOM_MARGIN)
         layout.setSpacing(12)
 
         # ── 从传入的记录读取 ──
