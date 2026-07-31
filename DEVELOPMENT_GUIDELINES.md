@@ -12,10 +12,17 @@
 | `src/core/` | 可参数化测试的状态机、工时计算和领域规则 | Repository、SQLite、网络、文件和系统调用 |
 | `src/data/` | Repository、SQLite schema、事务、数据模型转换 | UI 逻辑、网络请求、业务流程 |
 | `src/utils/` | 无状态通用工具（日期、路径、系统适配） | 持有业务状态或编排跨层流程 |
+| `src/app/` | 应用装配、运行时线程管理、退出生命周期 | 业务规则、UI 控件和数据库操作 |
 
 Core 可以引用共享的 `data.models` 和数据库时间格式常量，但不得创建 Repository 或连接 SQLite。
 UI 可以展示 Service 返回的领域模型，也可以引用共享配置和模型，但不得直接依赖具体 Repository。
 新增依赖必须遵循这个方向，禁止循环导入和跨层偷渡。
+
+UI 内部按职责拆分为 `views/`、`components/`、`controllers/`、`models/` 和后续的
+`animations/`。`views/` 负责页面组合，`components/` 负责可复用控件，
+`controllers/` 将 Service 结果转换为展示状态，`models/` 保存展示状态，动画只处理视觉效果。
+旧的 `src/ui/*.py` 导入路径作为兼容入口保留；新增代码优先使用对应子包路径。
+线程管理属于 `src/app/runtime/`，不得重新放回 `src/utils/` 或由单个窗口私自维护。
 
 ### 依赖注入与状态
 

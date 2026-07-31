@@ -18,6 +18,7 @@ from collections.abc import Callable
 
 from PySide6 import QtCore, QtWidgets
 
+from src.app.runtime import start_managed_thread
 from src.config import (
     SETTING_AUTO_START,
     SETTING_DAILY_REQUIRED_HOURS,
@@ -33,7 +34,6 @@ from src.config import (
 )
 from src.ui.dialog_buttons import make_dialog_button
 from src.ui.theme import get_theme
-from src.utils.managed_threads import start_managed_thread
 
 
 class SettingsDialogUI(QtWidgets.QDialog):

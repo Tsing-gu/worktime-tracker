@@ -22,6 +22,7 @@ from collections.abc import Callable
 
 from PySide6 import QtCore
 
+from src.app.runtime import start_managed_thread
 from src.config import POLL_INTERVAL_MS, SETTING_NOTIFY_ON_OFF, SETTING_NOTIFY_ON_TARGET
 from src.core.tracker import PollResult
 from src.services import notification_service
@@ -30,7 +31,6 @@ from src.services.record_service import RecordService
 from src.services.settings_service import SettingsService
 from src.services.stats_service import StatsService
 from src.services.tracking_service import TrackingService
-from src.utils.managed_threads import start_managed_thread
 
 logger = logging.getLogger(__name__)
 

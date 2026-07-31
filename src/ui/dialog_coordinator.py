@@ -25,6 +25,7 @@ from datetime import date, datetime, timedelta
 
 from PySide6 import QtCore, QtWidgets
 
+from src.app.runtime import start_managed_thread
 from src.services.factory import ServiceFactory
 from src.services.record_service import RecordService
 from src.services.settings_service import SettingsService
@@ -37,7 +38,6 @@ from src.ui.edit_start_dialog import EditStartDialogUI
 from src.ui.leave_dialog import LeaveDialogUI
 from src.ui.settings_dialog import SettingsDialogUI
 from src.utils.date_utils import compute_work_date
-from src.utils.managed_threads import start_managed_thread
 
 
 class DialogCoordinator(QtCore.QObject):

@@ -18,7 +18,7 @@ import sys
 
 from PySide6 import QtCore, QtWidgets
 
-from src.ui.main_window import MainWindowUI
+from src.ui.views.main_window import MainWindowUI
 from src.ui.theme import build_qss, get_theme
 from src.utils.logging_setup import setup_logging
 from src.utils.version import get_version

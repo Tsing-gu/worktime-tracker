@@ -17,11 +17,11 @@ import logging
 
 from PySide6 import QtCore, QtWidgets
 
+from src.app.runtime import start_managed_thread
 from src.services.factory import ServiceFactory
 from src.services.update_service import UpdateService
 from src.ui.dialog_coordinator import DialogCoordinator
 from src.ui.update_dialog import UpdateConfirmDialogUI, UpdateProgressDialogUI
-from src.utils.managed_threads import start_managed_thread
 
 logger = logging.getLogger(__name__)
 

@@ -1,4 +1,4 @@
-"""兼容入口：线程管理实现已迁移到 :mod:`src.app.runtime`。"""
+"""应用运行时资源管理。"""
 
 from src.app.runtime.thread_manager import (
     managed_thread_count,

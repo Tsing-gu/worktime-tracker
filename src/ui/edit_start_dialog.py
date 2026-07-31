@@ -9,9 +9,9 @@ edit_start_dialog - 修改上班时间弹窗
 
 from PySide6 import QtCore, QtWidgets
 
+from src.app.runtime import start_managed_thread
 from src.services.tracking_service import TrackingService
 from src.ui.dialog_buttons import make_dialog_button
-from src.utils.managed_threads import start_managed_thread
 
 
 class EditStartDialogUI(QtWidgets.QDialog):

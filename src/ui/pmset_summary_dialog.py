@@ -22,12 +22,12 @@ from functools import partial
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
+from src.app.runtime import start_managed_thread
 from src.data.models import PmsetDailySummary
 from src.services.factory import ServiceFactory
 from src.services.tracking_service import TrackingService
 from src.ui.dialog_buttons import make_dialog_button
 from src.utils.date_utils import WEEKDAY_NAMES
-from src.utils.managed_threads import start_managed_thread
 
 logger = logging.getLogger(__name__)
 
